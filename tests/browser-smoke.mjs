@@ -24,6 +24,8 @@ try{
  await page.getByText('Мальчишник',{exact:true}).first().waitFor();
  await page.locator('.mobile-nav [data-nav="more"]').click();
  await page.locator('.more-link[data-nav="accounts"]').click();
+ await page.locator('[data-account-toggle="savings"]').click();
+ await page.getByText('Учитывать в дневном бюджете',{exact:true}).first().waitFor();
  await page.locator('[data-modal="account"]').click();
  await page.locator('[name="title"]').fill('Наличные');
  await page.locator('[name="opening"]').fill('500');
