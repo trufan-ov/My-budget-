@@ -9,6 +9,7 @@ try{
  await page.goto('http://127.0.0.1:4173/',{waitUntil:'networkidle'});
  assert.equal(await page.locator('.mobile-nav button').count(),4);
  await page.locator('.mobile-nav [data-nav="more"]').click();
+ assert.equal(await page.locator('.more-link').count(),4);
  await page.locator('.more-link[data-nav="settings"]').click();
  await page.locator('[data-personal-seed]').click();
  await page.locator('[data-nav="plan"]:visible').first().click();
