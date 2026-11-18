@@ -17,6 +17,14 @@ try{
  await page.getByText('Свадьба Матвея',{exact:true}).first().waitFor();
  assert.equal(await page.locator('[data-plan-pay]').count(),12);
  await page.locator('.mobile-nav [data-nav="more"]').click();
+ await page.locator('.more-link[data-nav="forecast"]').click();
+ await page.getByText('Прогноз по месяцам',{exact:true}).first().waitFor();
+ assert.equal(await page.getByText(/NaN|не число/i).count(),0);
+ for(const choice of ['actual','economical','comfortable']){
+  await page.locator('[data-scenario="'+choice+'"]').click();
+  assert.equal(await page.getByText(/NaN|не число/i).count(),0);
+ }
+ await page.locator('.mobile-nav [data-nav="more"]').click();
  await page.locator('.more-link[data-nav="settings"]').click();
  await page.getByText('ChatGPT',{exact:true}).first().waitFor();
  await page.reload({waitUntil:'networkidle'});
