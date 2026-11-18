@@ -34,3 +34,21 @@ test('long-range forecast includes installments',()=>{
  const base=financeForecast(s,'2026-11-18',3);
  assert.ok(base[0].available<base[1].available+10000000);
 });
+
+test('overdue installment remains reserved after its deadline',()=>{
+ const state=applyPersonalDraft(blank());
+ const overdue=pendingEvents(state,'2026-12-20','2026-12-31');
+ const bill=overdue.find(e=>e.id==='installment-1-0');
+ assert.ok(bill);
+ assert.equal(bill.remaining,2048371);
+ assert.equal(bill.date,'2026-12-20');
+});
+test('unconfirmed salary does not increase actual cash',()=>{
+ const state=applyPersonalDraft(blank());
+ assert.equal(dailyPlan(state,'2026-11-18','2026-11-22').maximumDaily,69240);
+});
+test('subscriptions without dates are not silently assigned a due date',()=>{
+ const state=applyPersonalDraft(blank());
+ assert.equal(state.undatedObligations.reduce((n,x)=>n+x.amount,0),330000);
+ assert.ok(!pendingEvents(state,'2026-11-18','2026-11-22').some(x=>x.category==='Подписки'));
+});
