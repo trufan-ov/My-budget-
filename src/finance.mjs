@@ -34,7 +34,7 @@ export function pendingEvents(state,start,end){
     const allocated=Math.min(manualPrincipal,principalRemaining);
     manualPrincipal-=allocated;
     const principal=Math.max(0,principalRemaining-allocated);
-    const interest=principal===0?0:Math.max(0,p.interest-interestPaid);
+    const interest=Math.max(0,p.interest-interestPaid);
     return {id,debtId:d.id,date:p.date<start?start:p.date,originalDate:p.date,title:d.title+' — платёж '+(i+1),amount:principal+interest,kind:'expense',type:'debtSchedule',category:'Кредиты',principal,interest,paid:principalPaid+interestPaid+allocated,remaining:principal+interest};
    }).filter(p=>p.originalDate<=end);
   }
