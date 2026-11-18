@@ -111,3 +111,11 @@ test('recurring income is classified as income',async()=>{
  const state={...blank(),rules:[{id:'rent',type:'income',title:'Доход',day:20,amount:100000}]};
  assert.equal(futureOccurrences(state,'2026-11-18','2026-11-30')[0].kind,'income');
 });
+
+test('planned savings transfer conserves projected net worth',()=>{
+ const state={...blank(),opening:{available:1000000,savings:0},rules:[{id:'save',type:'savings',title:'В копилку',day:20,amount:100000}]};
+ const projected=financeForecast(state,'2026-11-18',1);
+ const noRule=financeForecast({...state,rules:[]},'2026-11-18',1);
+ assert.equal(projected[0].available,noRule[0].available-100000);
+ assert.ok(projected[0].savings>=noRule[0].savings+100000);
+});
