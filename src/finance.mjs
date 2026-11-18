@@ -19,9 +19,10 @@ export function pendingEvents(state,start,end){
  const actual=state.transactions||[];
  const from=state.settings?.planning?.startDate||start;
  const recurring=futureOccurrences(state,from<start?from:start,end,true).filter(e=>e.kind!=='income'||e.date>=start).map(e=>({...e,originalDate:e.date,date:e.date<start?start:e.date}));
- const all=[...recurring,...installmentEvents(state,start,end),...goalEvents(state,start,end)];
+ const debts=(state.debts||[]).filter(d=>d.dueDate&&d.dueDate<=end&&d.type!=='lent').map(d=>({id:'debt-due:'+d.id,date:d.dueDate<start?start:d.dueDate,originalDate:d.dueDate,title:d.title,amount:d.principal,kind:'expense',type:'debt',category:'Кредиты'}));
+ const all=[...recurring,...installmentEvents(state,start,end),...goalEvents(state,start,end),...debts];
  return all.map(e=>{
-   const paid=actual.filter(t=>t.plannedId===e.id).reduce((a,t)=>a+t.amount,0);
+   const paid=actual.filter(t=>e.type==='debt'?t.debtId===e.id.slice(9):t.plannedId===e.id).reduce((a,t)=>a+(e.type==='debt'?t.principal||0:t.amount),0);
    const closed=(state.closedPlans||[]).includes(e.id);
    return {...e,paid,remaining:closed?0:Math.max(0,e.amount-paid)};
  }).filter(e=>e.remaining>0);
