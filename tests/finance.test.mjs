@@ -175,3 +175,12 @@ test('forecast never returns NaN rubles for invalid daily budget or economy sett
  const rows=financeForecast(base,'2026-11-18',3,'comfortable');
  assert.ok(rows.every(r=>[r.available,r.savings,r.total,r.interest,r.daily].every(Number.isFinite)));
 });
+
+test('forecast month boundaries are complete dates and produce numeric balances',()=>{
+ const state=applyPersonalDraft(blank());
+ for(const horizon of [3,6,12]){
+  const rows=financeForecast(state,'2026-11-18',horizon);
+  assert.equal(rows.length,horizon);
+  assert.ok(rows.every(r=>[r.available,r.savings,r.total,r.interest,r.daily].every(Number.isSafeInteger)));
+ }
+});
