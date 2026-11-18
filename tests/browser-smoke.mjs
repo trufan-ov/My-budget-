@@ -9,6 +9,14 @@ page.on('dialog',async dialog=>dialog.accept());
 try{
  await page.goto('http://localhost:4173/',{waitUntil:'networkidle'});
  assert.equal(await page.locator('.mobile-nav button').count(),4);
+ await page.waitForFunction(()=>Boolean(navigator.serviceWorker.controller));
+ assert.equal(await page.evaluate(async()=>Boolean(await caches.match('/index.html'))),true);
+ if(process.env.BROWSER!=='webkit'){
+  await context.setOffline(true);
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.locator('.mobile-nav').waitFor();
+  await context.setOffline(false);
+ }
  await page.locator('.mobile-nav [data-nav="more"]').click();
  assert.equal(await page.locator('.more-link').count(),4);
  await page.locator('.more-link[data-nav="settings"]').click();
@@ -108,14 +116,6 @@ try{
   return (await load()).rules.find(x=>x.title==='Тестовое правило').revisions[0];
  });
  assert.equal(revision.amount,25000);
- await page.waitForFunction(()=>Boolean(navigator.serviceWorker.controller));
- assert.equal(await page.evaluate(async()=>Boolean(await caches.match('/index.html'))),true);
- if(process.env.BROWSER!=='webkit'){
-  await context.setOffline(true);
-  await page.reload({waitUntil:'domcontentloaded'});
-  await page.locator('.mobile-nav').waitFor();
-  await context.setOffline(false);
- }
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  assert.deepEqual(errors,[]);
  console.log('PASS: iPhone-size personal draft click, goals, 10 installments, subscriptions, persistence, concurrent edits, backup round-trip, write rollback, service worker cache, no JS errors');
