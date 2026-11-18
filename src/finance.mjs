@@ -96,9 +96,32 @@ export function financeForecast(state,today,months=6,scenario='comfortable'){
  const monthStart=(n)=>{const d=new Date(first.getFullYear(),first.getMonth()+n,1,12);return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0')].join('-');};
  const end=monthStart(months)+'-01';
  const events=pendingEvents(state,start,end),byMonth=new Map();
+ // Legacy future-dated goal payments are not in today's account balance.
+ // Forecast them as future cash outflows rather than treating them as paid now.
+ const futureGoalPayments=(state.transactions||[]).filter(t=>t.kind==='expense'&&t.plannedId&&(state.goals||[]).some(g=>g.id===t.plannedId)&&t.date>=start&&t.date<end&&!t.historical);
+ const futureGoalById=new Map();
+ for(const t of futureGoalPayments)futureGoalById.set(t.plannedId,(futureGoalById.get(t.plannedId)||0)+t.amount);
  const fundedGoals=goalFundingStatus(state,today).filter(g=>g.funded>0&&!(state.closedPlans||[]).includes(g.id));
  const goalById=new Map((state.goals||[]).map(g=>[g.id,g]));
  for(const e of events){const month=e.date.slice(0,7),p=byMonth.get(month)||{income:0,expense:0,savings:0};p[e.kind==='income'?'income':'expense']+=e.remaining;if(e.type==='savings')p.savings+=e.remaining;byMonth.set(month,p);}
+ // A future payment replaces part of the goal's projected deadline expense.
+ for(const t of futureGoalPayments){
+   const month=t.date.slice(0,7),p=byMonth.get(month)||{income:0,expense:0,savings:0};
+   if((t.accountId||'main')==='savings')p.savings-=t.amount;
+   else p.expense+=t.amount;
+   byMonth.set(month,p);
+ }
+ for(const g of state.goals||[]){
+   const futurePaid=futureGoalById.get(g.id)||0;
+   if(!futurePaid||(state.closedPlans||[]).includes(g.id))continue;
+   const funding=goalFundingStatus(state,today).find(x=>x.id===g.id);
+   const due=(g.date<start?start:g.date).slice(0,7);
+   const p=byMonth.get(due)||{income:0,expense:0,savings:0};
+   // The scheduled payment consumes the same obligation, not a second one.
+   const fromUnfunded=Math.min(futurePaid,funding?.unfunded||0);
+   p.expense-=fromUnfunded;
+   byMonth.set(due,p);
+ }
  let available=initial.available,savings=initial.savings;
  const target=Number(state.settings?.planning?.dailyTarget??0);
  if(!Number.isSafeInteger(target)||target<0)throw Error('Некорректный дневной бюджет. Проверьте настройки финансового плана');
