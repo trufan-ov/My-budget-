@@ -109,7 +109,7 @@ if(ev.target.id==='bank-csv'){const file=ev.target.files?.[0];if(!file)return;tr
   const dateIndex=(workbook.rows[0]||[]).findIndex(h=>/дата|date/i.test(String(h)));const rows=workbook.rows.map((row,i)=>row.map((cell,j)=>i>0&&j===dateIndex&&/^\d+(\.\d+)?$/.test(String(cell))?excelDate(cell,workbook.date1904):String(cell)));
   const quote=v=>'"'+String(v).replace(/"/g,'""')+'"';
   bankPreview=parseBankCSV(rows.map(r=>r.map(quote).join(';')).join('\n'));bankPreviewPage=0;
- }else if(/\.csv$/i.test(file.name))bankPreview=parseBankCSV(await file.text());bankPreviewPage=0;
+ }else if(/\.csv$/i.test(file.name)){bankPreview=parseBankCSV(await file.text());bankPreviewPage=0;}
  else throw Error('Поддерживаются CSV и XLSX. Старый формат XLS сохрани в XLSX.');
  render();
  }catch(e){toast(e.message,true);}return;}if(ev.target.id==='import-file'){const f=ev.target.files?.[0];if(!f)return;try{const backup=await readBackup(f);if(!confirm('Восстановление заменит все текущие данные. Продолжить?'))return;await commit(backup,'Резервная копия восстановлена');}catch(err){toast(err.message,true);}}});
