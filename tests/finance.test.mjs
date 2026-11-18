@@ -364,3 +364,13 @@ test('future-dated goal payment does not reduce current paid amount or earmark',
  assert.equal(later.funded,300000);
  assert.equal(later.unfunded,100000);
 });
+
+test('legacy future goal payment is forecast on its date without double charging at deadline',async()=>{
+ const base={...blank(),opening:{available:1000000,savings:0},goals:[{id:'trip',title:'Trip',date:'2026-12-05',amount:600000,funded:0}]};
+ const future=record(base,{kind:'expense',accountId:'main',amount:200000,date:'2026-11-25',plannedId:'trip',category:'Цель'});
+ const {goalFundingStatus}=await import('../src/finance.mjs');
+ assert.equal(goalFundingStatus(future,'2026-11-18')[0].paid,0);
+ const rows=financeForecast(future,'2026-11-18',3);
+ assert.equal(rows[0].available,800000);
+ assert.equal(rows[1].available,400000);
+});
