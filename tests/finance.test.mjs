@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {demo,record} from '../src/core.mjs';
+import {demo,record,deleteTransaction,accountBalances} from '../src/core.mjs';
 import {personalDraft,applyPersonalDraft,pendingEvents,dailyPlan,financeForecast} from '../src/finance.mjs';
 const blank=()=>({...demo('2026-11-18'),opening:{available:0,savings:0},transactions:[],rules:[],oneOffs:[],settings:{savingsApr:0}});
 test('personal setup retains all ten installment payments',()=>{
