@@ -140,19 +140,26 @@ export function financeForecast(state,today,months=6,scenario='comfortable'){
    else p.expense+=t.amount;
    byMonth.set(month,p);
  }
- for(const g of state.goals||[]){
-   const futurePaid=futureGoalById.get(g.id)||0;
-   if(!futurePaid||(state.closedPlans||[]).includes(g.id))continue;
-   const funding=fundingById.get(g.id);
-   const fromReserve=futureGoalFromReserve.get(g.id)||0;
-   const fromOther=futurePaid-fromReserve;
-   const reserveConsumed=Math.min(funding?.funded||0,fromReserve);
-   const unfundedConsumed=Math.min(funding?.unfunded||0,fromOther+Math.max(0,fromReserve-reserveConsumed));
-   const due=(g.date<start?start:g.date).slice(0,7);
-   const p=byMonth.get(due)||{income:0,expense:0,savings:0};
-   p.expense-=unfundedConsumed;
-   byMonth.set(due,p);
+ // Offset a future payment only when it occurs, never before the cash leaves.
+ // For payments before the deadline, offset the obligation at its due month.
+ const reserveUsedByGoal=new Map(),unfundedUsedByGoal=new Map();
+ for(const t of [...futureGoalPayments].sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id))){
+   const goal=goalById.get(t.plannedId),funding=fundingById.get(t.plannedId);
+   if(!goal||!funding||(state.closedPlans||[]).includes(goal.id))continue;
+   const fromReserve=(t.accountId||'main')===funding.accountId;
+   const reserved=fromReserve?Math.min(t.amount,Math.max(0,funding.funded-(reserveUsedByGoal.get(goal.id)||0))):0;
+   reserveUsedByGoal.set(goal.id,(reserveUsedByGoal.get(goal.id)||0)+reserved);
+   const offset=Math.min(t.amount-reserved,Math.max(0,funding.unfunded-(unfundedUsedByGoal.get(goal.id)||0)));
+   unfundedUsedByGoal.set(goal.id,(unfundedUsedByGoal.get(goal.id)||0)+offset);
+   if(offset){
+     const due=goal.date<start?start:goal.date;
+     const month=(t.date>due?t.date:due).slice(0,7);
+     const p=byMonth.get(month)||{income:0,expense:0,savings:0};
+     p.expense-=offset;
+     byMonth.set(month,p);
+   }
  }
+
  let available=initial.available,savings=initial.savings;
  const target=Number(state.settings?.planning?.dailyTarget??0);
  if(!Number.isSafeInteger(target)||target<0)throw Error('Некорректный дневной бюджет. Проверьте настройки финансового плана');
