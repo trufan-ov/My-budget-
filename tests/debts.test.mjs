@@ -65,3 +65,23 @@ test('scheduled principal and interest already paid are not counted again',async
  const events=pendingEvents(state,'2026-11-20','2026-12-31');
  assert.deepEqual([events[0].principal,events[0].interest,events[0].remaining],[60000,500,60500]);
 });
+
+test('a low-value debt ends at the last nonzero payment',()=>{
+ const rows=repaymentSchedule({principal:2,apr:0,months:12,startDate:'2028-01-31'});
+ assert.deepEqual(rows.map(row=>[row.date,row.principal,row.remaining]),[
+  ['2028-01-31',1,1],['2028-02-29',1,0],
+ ]);
+});
+
+test('near-zero APR stays numerically stable',()=>{
+ const rows=repaymentSchedule({principal:10001,apr:1e-20,months:3,startDate:'2028-01-31'});
+ assert.deepEqual(rows.map(row=>row.amount),[3334,3334,3333]);
+});
+
+test('debt dates reject non-existent calendar days',async()=>{
+ const {addDebt}=await import('../src/debts.mjs');
+ const debt={title:'Карта',type:'creditCard',principal:10000};
+ assert.throws(()=>addDebt({}, {...debt,dueDate:'2027-02-29'}),/дата погашения/);
+ assert.throws(()=>addDebt({}, {...debt,graceUntil:'2027-04-31'}),/льготного периода/);
+ assert.throws(()=>repaymentSchedule({...debt,months:3,startDate:'2027-02-29'}),/дата графика/);
+});
