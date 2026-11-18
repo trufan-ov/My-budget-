@@ -480,3 +480,19 @@ test('fully reserved goal paid from main and savings in future has consistent da
  assert.equal(rows[0].available,700000);
  assert.equal(rows[1].savings,400000);
 });
+
+test('goal beyond daily horizon keeps its reserved funds unavailable without charging obligation early',()=>{
+ const base={...blank(),opening:{available:1000000,savings:0},goals:[{id:'trip',title:'Trip',date:'2027-01-10',amount:500000,funded:300000,fundedAccountId:'main'}]};
+ assert.equal(dailyPlan(base,'2026-11-18','2026-11-30').free,700000);
+ assert.equal(pendingEvents(base,'2026-11-18','2026-11-30').some(e=>e.id==='trip'),false);
+});
+test('future partial goal payment inside daily horizon does not prematurely charge a later obligation',()=>{
+ const base={...blank(),opening:{available:1000000,savings:0},goals:[{id:'trip',title:'Trip',date:'2027-01-10',amount:500000,funded:300000,fundedAccountId:'main'}]};
+ const state=record(base,{kind:'expense',accountId:'main',amount:100000,date:'2026-11-25',plannedId:'trip',category:'Цель'});
+ assert.equal(dailyPlan(state,'2026-11-18','2026-11-30').free,700000);
+});
+test('future partial payment after goal deadline is not charged twice by daily budget',()=>{
+ const base={...blank(),opening:{available:1000000,savings:0},goals:[{id:'trip',title:'Trip',date:'2026-11-20',amount:500000,funded:0}]};
+ const state=record(base,{kind:'expense',accountId:'main',amount:100000,date:'2026-11-25',plannedId:'trip',category:'Цель'});
+ assert.equal(dailyPlan(state,'2026-11-18','2026-11-30').free,500000);
+});
