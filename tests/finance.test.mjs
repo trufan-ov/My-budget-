@@ -194,3 +194,15 @@ test('historical daily spend ignores goals, credit payments and savings moves',(
  ]};
  assert.equal(financeForecast(state,'2026-11-18',1,'actual')[0].daily,1000);
 });
+
+test('overdue one-off obligations stay pending until paid or closed',()=>{
+ const state={...blank(),opening:{available:500000,savings:0},oneOffs:[{id:'rent-old',title:'Просроченная аренда',kind:'expense',date:'2026-11-10',amount:200000}]};
+ const overdue=pendingEvents(state,'2026-11-18','2026-11-30').find(e=>e.id==='rent-old');
+ assert.equal(overdue.originalDate,'2026-11-10');
+ assert.equal(overdue.date,'2026-11-18');
+ assert.equal(overdue.remaining,200000);
+ assert.equal(dailyPlan(state,'2026-11-18','2026-11-18').maximumDaily,300000);
+ const partial={...state,transactions:[{id:'paid',kind:'expense',date:'2026-11-18',amount:50000,plannedId:'rent-old'}]};
+ assert.equal(pendingEvents(partial,'2026-11-18','2026-11-30').find(e=>e.id==='rent-old').remaining,150000);
+ assert.equal(pendingEvents({...state,closedPlans:['rent-old']},'2026-11-18','2026-11-30').some(e=>e.id==='rent-old'),false);
+});
