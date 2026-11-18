@@ -391,3 +391,20 @@ test('future goal payment from other account reduces unfunded before earmark',()
  assert.equal(rows[1].available,300000);
  assert.equal(rows[1].savings,200000);
 });
+
+test('daily plan avoids double charge when future payment consumes earmarked main balance',()=>{
+ const base={...blank(),opening:{available:1000000,savings:0},goals:[{id:'trip',title:'Trip',date:'2026-11-20',amount:600000,funded:500000,fundedAccountId:'main'}]};
+ const future=record(base,{kind:'expense',accountId:'main',amount:200000,date:'2026-11-19',plannedId:'trip',category:'Цель'});
+ assert.equal(dailyPlan(future,'2026-11-18','2026-11-20').free,400000);
+});
+test('daily plan counts nonreserve future goal payment only once',()=>{
+ const base={...blank(),opening:{available:1000000,savings:600000},goals:[{id:'trip',title:'Trip',date:'2026-11-20',amount:600000,funded:500000,fundedAccountId:'savings'}]};
+ const future=record(base,{kind:'expense',accountId:'main',amount:200000,date:'2026-11-19',plannedId:'trip',category:'Цель'});
+ assert.equal(dailyPlan(future,'2026-11-18','2026-11-20').free,800000);
+});
+test('daily plan counts multiple partial goal payments from reserve and main',()=>{
+ const base={...blank(),opening:{available:1000000,savings:600000},goals:[{id:'trip',title:'Trip',date:'2026-11-20',amount:600000,funded:500000,fundedAccountId:'savings'}]};
+ let future=record(base,{kind:'expense',accountId:'savings',amount:200000,date:'2026-11-19',plannedId:'trip',category:'Цель'});
+ future=record(future,{kind:'expense',accountId:'main',amount:200000,date:'2026-11-20',plannedId:'trip',category:'Цель'});
+ assert.equal(dailyPlan(future,'2026-11-18','2026-11-20').free,800000);
+});
