@@ -78,7 +78,7 @@ export function financeForecast(state,today,months=6,scenario='comfortable'){
  let available=initial.available,savings=initial.savings;
  const target=Number(state.settings?.planning?.dailyTarget??0);
  if(!Number.isSafeInteger(target)||target<0)throw Error('Некорректный дневной бюджет. Проверьте настройки финансового плана');
- const recent=(state.transactions||[]).filter(t=>t.kind==='expense'&&!t.plannedId&&!t.debtId&&!t.historical&&t.category!=='Долги'&&t.category!=='Рассрочка'&&t.date>=addDays(today,-30)&&t.date<=today);
+ const recent=(state.transactions||[]).filter(t=>t.kind==='expense'&&!t.plannedId&&!t.debtId&&!t.historical&&!['Долги','Кредиты','Рассрочка','Цель','Копилка'].includes(t.category)&&t.date>=addDays(today,-30)&&t.date<=today);
  const observed=recent.length?Math.round(recent.reduce((a,t)=>a+t.amount,0)/30):null;
  if(scenario==='actual'&&observed===null)throw Error('Недостаточно фактических расходов за последние 30 дней для прогноза по истории');
  const economy=Number(state.settings?.planning?.economyPercent??20);
