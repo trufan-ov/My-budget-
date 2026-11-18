@@ -163,3 +163,15 @@ test('historical spending forecast excludes debt payments and pre-opening bank h
  const rows=financeForecast(state,'2026-11-18',1,'actual');
  assert.equal(rows[0].daily,1000);
 });
+
+test('forecast never returns NaN rubles for invalid daily budget or economy settings',async()=>{
+ const {financeForecast}=await import('../src/finance.mjs');
+ const {demo}=await import('../src/core.mjs');
+ const base=demo('2026-11-18');
+ const invalid={...base,settings:{...base.settings,planning:{...base.settings?.planning,dailyTarget:'не число'}}};
+ assert.throws(()=>financeForecast(invalid,'2026-11-18',3,'comfortable'),/дневной бюджет/);
+ const invalidEconomy={...base,settings:{...base.settings,planning:{...base.settings?.planning,economyPercent:'не число'}}};
+ assert.throws(()=>financeForecast(invalidEconomy,'2026-11-18',3,'economical'),/процент экономии/);
+ const rows=financeForecast(base,'2026-11-18',3,'comfortable');
+ assert.ok(rows.every(r=>[r.available,r.savings,r.total,r.interest,r.daily].every(Number.isFinite)));
+});
