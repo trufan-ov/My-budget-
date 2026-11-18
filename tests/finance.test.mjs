@@ -445,3 +445,16 @@ test('multiple payments after goal deadline update the remaining obligation by e
  assert.equal(goalFundingStatus(state,'2026-11-19')[0].unfunded,400000);
  assert.equal(goalFundingStatus(state,'2026-11-21')[0].unfunded,250000);
 });
+
+test('overdue goal with two future partial payments is counted once in daily budget',()=>{
+ const base={...blank(),opening:{available:1000000,savings:0},goals:[{id:'late',title:'Late',date:'2026-11-10',amount:500000,funded:0}]};
+ let state=record(base,{kind:'expense',accountId:'main',amount:100000,date:'2026-11-19',plannedId:'late',category:'Цель'});
+ state=record(state,{kind:'expense',accountId:'main',amount:150000,date:'2026-11-21',plannedId:'late',category:'Цель'});
+ assert.equal(dailyPlan(state,'2026-11-18','2026-11-22').free,500000);
+});
+test('overdue goal with two future partial payments is counted once in forecast',()=>{
+ const base={...blank(),opening:{available:1000000,savings:0},goals:[{id:'late',title:'Late',date:'2026-11-10',amount:500000,funded:0}]};
+ let state=record(base,{kind:'expense',accountId:'main',amount:100000,date:'2026-11-19',plannedId:'late',category:'Цель'});
+ state=record(state,{kind:'expense',accountId:'main',amount:150000,date:'2026-11-21',plannedId:'late',category:'Цель'});
+ assert.equal(financeForecast(state,'2026-11-18',2)[0].available,500000);
+});
