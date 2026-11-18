@@ -14,3 +14,12 @@ jobs:
       - run: node --check src/app.mjs
       - run: node --check src/finance.mjs
       - run: node --check src/core.mjs
+      - name: Install browser test dependency
+        run: |
+          npm install --no-save playwright
+          npx playwright install --with-deps chromium
+      - name: Browser smoke test (mobile viewport)
+        run: |
+          node server.mjs > /tmp/budget-server.log 2>&1 &
+          sleep 2
+          node tests/browser-smoke.mjs
