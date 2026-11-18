@@ -64,8 +64,9 @@ export function financeForecast(state,today,months=6,scenario='comfortable'){
    const month=monthStart(i),next=monthStart(i+1);
    const from=i===0?start:month+'-01';
    const days=Math.max(0,diffDays(from,next));
-   const p=byMonth.get(month)||{income:0,expense:0};
+   const p=byMonth.get(month)||{income:0,expense:0,savings:0};
    available+=p.income-p.expense-daily*days;
+   savings+=p.savings;
    const interest=Math.max(0,Math.round(Math.max(0,savings)*Number(state.settings?.savingsApr||0)/1200));
    savings+=interest;
    rows.push({month,available,savings,total:available+savings,interest,events:events.filter(e=>e.date.slice(0,7)===month).length,daily});
