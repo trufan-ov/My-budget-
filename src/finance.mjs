@@ -12,8 +12,22 @@ export const personalDraft = {
 export function installmentEvents(state,start,end){
  return (state.installments||[]).flatMap(loan=>(loan.payments||[]).filter(p=>p.date<=end).map(p=>({id:p.id,date:p.date<start?start:p.date,originalDate:p.date,title:loan.title,amount:p.amount,kind:'expense',type:'installment',category:'Рассрочка'})));
 }
+export function goalFundingStatus(state,day){
+ const balances=accountBalances(state,day);
+ const allocated=new Map();
+ return (state.goals||[]).map(g=>{
+  const accountId=g.fundedAccountId||null;
+  const requested=g.funded||0;
+  const already=accountId?allocated.get(accountId)||0:0;
+  const balance=accountId?Math.max(0,balances[accountId]||0):0;
+  const funded=accountId?Math.min(requested,Math.max(0,balance-already)):0;
+  if(accountId)allocated.set(accountId,already+funded);
+  return {id:g.id,accountId,requested,funded,unfunded:Math.max(0,g.amount-funded)};
+ });
+}
 export function goalEvents(state,start,end){
- return (state.goals||[]).filter(g=>g.date<=end).map(g=>({id:g.id,date:g.date<start?start:g.date,originalDate:g.date,title:g.title,amount:Math.max(0,g.amount-(g.funded||0)),kind:'expense',type:'goal',category:'Цель'}));
+ const funded=new Map(goalFundingStatus(state,start).map(g=>[g.id,g]));
+ return (state.goals||[]).filter(g=>g.date<=end).map(g=>({id:g.id,date:g.date<start?start:g.date,originalDate:g.date,title:g.title,amount:funded.get(g.id).unfunded,kind:'expense',type:'goal',category:'Цель'}));
 }
 export function pendingEvents(state,start,end){
  const actual=state.transactions||[];
