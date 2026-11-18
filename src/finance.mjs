@@ -92,6 +92,8 @@ export function financeForecast(state,today,months=6,scenario='comfortable'){
  const monthStart=(n)=>{const d=new Date(first.getFullYear(),first.getMonth()+n,1,12);return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0')].join('-');};
  const end=monthStart(months)+'-01';
  const events=pendingEvents(state,start,end),byMonth=new Map();
+ const fundedGoals=goalFundingStatus(state,today).filter(g=>g.funded>0&&!(state.closedPlans||[]).includes(g.id));
+ const goalById=new Map((state.goals||[]).map(g=>[g.id,g]));
  for(const e of events){const month=e.date.slice(0,7),p=byMonth.get(month)||{income:0,expense:0,savings:0};p[e.kind==='income'?'income':'expense']+=e.remaining;if(e.type==='savings')p.savings+=e.remaining;byMonth.set(month,p);}
  let available=initial.available,savings=initial.savings;
  const target=Number(state.settings?.planning?.dailyTarget??0);
@@ -111,6 +113,15 @@ export function financeForecast(state,today,months=6,scenario='comfortable'){
    const p=byMonth.get(month)||{income:0,expense:0,savings:0};
    available+=p.income-p.expense-daily*days;
    savings+=p.savings;
+   // Goal money remains in the real account until the goal is paid.
+   // At its deadline it leaves that account, even if it was already earmarked.
+   for(const funded of fundedGoals){
+     const goal=goalById.get(funded.id);
+     const due=goal.date<start?start:goal.date;
+     if(due.slice(0,7)!==month)continue;
+     if(funded.accountId==='savings')savings-=funded.funded;
+     else available-=funded.funded;
+   }
    const apr=Number(state.settings?.savingsApr??0);
    if(!Number.isFinite(apr)||apr<0||apr>100)throw Error('Некорректная ставка накоплений. Укажите значение от 0 до 100%');
    const interest=Math.max(0,Math.round(Math.max(0,savings)*apr/1200));
