@@ -13,7 +13,7 @@ export function installmentEvents(state,start,end){
  return (state.installments||[]).flatMap(loan=>(loan.payments||[]).filter(p=>p.date<=end).map(p=>({id:p.id,date:p.date<start?start:p.date,originalDate:p.date,title:loan.title,amount:p.amount,kind:'expense',type:'installment',category:'Рассрочка'})));
 }
 export function goalEvents(state,start,end){
- return (state.goals||[]).filter(g=>g.date<=end).map(g=>({id:g.id,date:g.date<start?start:g.date,originalDate:g.date,title:g.title,amount:g.amount,kind:'expense',type:'goal',category:'Цель'}));
+ return (state.goals||[]).filter(g=>g.date<=end).map(g=>({id:g.id,date:g.date<start?start:g.date,originalDate:g.date,title:g.title,amount:Math.max(0,g.amount-(g.funded||0)),kind:'expense',type:'goal',category:'Цель'}));
 }
 export function pendingEvents(state,start,end){
  const actual=state.transactions||[];
