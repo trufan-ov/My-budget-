@@ -36,6 +36,14 @@ try{
  await page.locator('[name="principal"]').fill('1000');
  await page.locator('form[data-form="debt"] button[type="submit"]').click();
  await page.getByText('Тестовый долг',{exact:true}).first().waitFor();
+ await page.locator('.mobile-nav [data-nav="more"]').click();
+ await page.locator('.more-link[data-nav="settings"]').click();
+ await page.locator('#bank-csv').setInputFiles({name:'statement.csv',mimeType:'text/csv',buffer:Buffer.from('Дата;Сумма;Описание\n19.11.2026;-50;Тестовая покупка\n')});
+ await page.getByText('Тестовая покупка',{exact:true}).first().waitFor();
+ await page.locator('[data-import-confirm]').click();
+ await page.getByText('statement.csv',{exact:true}).first().waitFor();
+ await page.locator('[data-import-undo]').click();
+ await page.getByText('Импортов пока нет',{exact:true}).first().waitFor();
  assert.deepEqual(errors,[]);
  console.log('PASS: iPhone-size personal draft click, goals, 10 installments, subscriptions, persistence, no JS errors');
 }finally{await browser.close();}
