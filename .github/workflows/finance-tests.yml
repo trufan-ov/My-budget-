@@ -17,9 +17,10 @@ jobs:
       - name: Install browser test dependency
         run: |
           npm install --no-save playwright
-          npx playwright install --with-deps chromium
+          npx playwright install --with-deps chromium webkit
       - name: Browser smoke test (mobile viewport)
         run: |
           node server.mjs > /tmp/budget-server.log 2>&1 &
           sleep 2
           node tests/browser-smoke.mjs
+          BROWSER=webkit node tests/browser-smoke.mjs
