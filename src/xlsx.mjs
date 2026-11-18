@@ -6,10 +6,12 @@ function zipEntries(bytes){
  for(let i=bytes.length-22;i>=Math.max(0,bytes.length-65557);i--)if(view.getUint32(i,true)===0x06054b50){end=i;break;}
  if(end<0)throw Error('Некорректный XLSX (ZIP)');
  const count=view.getUint16(end+10,true),offset=view.getUint32(end+16,true);
+ if(count>10000||offset>=bytes.length)throw Error('Некорректный или слишком большой XLSX');
  let p=offset;
  for(let i=0;i<count;i++){
   if(view.getUint32(p,true)!==0x02014b50)throw Error('Ошибка структуры XLSX');
   const method=view.getUint16(p+10,true),size=view.getUint32(p+20,true),nameLen=view.getUint16(p+28,true),extra=view.getUint16(p+30,true),comment=view.getUint16(p+32,true),local=view.getUint32(p+42,true);
+  if(p+46+nameLen+extra+comment>bytes.length||local>=bytes.length||size>25_000_000)throw Error('Некорректный или слишком большой XLSX');
   const name=decode.decode(bytes.subarray(p+46,p+46+nameLen));
   out.push({name,method,size,local});p+=46+nameLen+extra+comment;
  }
@@ -22,8 +24,12 @@ async function unzip(bytes,entry){
  const data=bytes.subarray(start,start+entry.size);
  if(entry.method===0)return decode.decode(data);
  if(entry.method!==8)throw Error('Неподдерживаемое сжатие XLSX');
- const stream=new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
- return decode.decode(await new Response(stream).arrayBuffer());
+ if(typeof DecompressionStream==='undefined')throw Error('Распаковка XLSX недоступна в этом браузере. Экспортируйте выписку в CSV');
+ try{
+  const stream=new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+  return decode.decode(await new Response(stream).arrayBuffer());
+ }catch(err){throw Error('Не удалось распаковать XLSX в этом браузере. Попробуйте CSV: '+(err?.message||'ошибка распаковки'));}
+
 }
 const xml=s=>{const doc=new DOMParser().parseFromString(s,'application/xml');if(doc.querySelector('parsererror'))throw Error('Ошибка XML в XLSX');return doc;};
 const nodes=(el,name)=>Array.from(el.getElementsByTagName(name));
