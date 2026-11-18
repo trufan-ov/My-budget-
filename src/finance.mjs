@@ -36,12 +36,13 @@ export function dailyPlan(state,today,end){
  for(let i=0;i<days;i++){const day=addDays(today,i),e=byDate.get(day)||{income:0,expense:0};running+=e.income-e.expense;if(running<0&&!firstShortfall)firstShortfall={date:day,amount:-running};cap=Math.min(cap,Math.floor(Math.max(0,running)/(i+1)));}
  return {available:Math.max(0,running),free:running,deficit:Math.max(0,-running),daily:Math.max(0,Math.min(target,cap)),maximumDaily:Math.max(0,cap),days,firstShortfall,pending};
 }
-export function applyPersonalDraft(state){
- if(state.transactions.length||state.oneOffs.length||state.installments?.length||state.goals?.length||state.rules.length)throw Error('Предзаполнение доступно только для пустого бюджета. Сначала сохрани резервную копию.');
- return {...state,opening:{...personalDraft.opening},goals:personalDraft.goals.map(g=>({...g})),installments:personalDraft.installments.map(x=>({...x,payments:x.payments.map(p=>({...p}))})),rules:[
+export function applyPersonalDraft(state,{replaceDemo=false}={}){
+ const hasExisting=state.transactions.length||state.oneOffs.length||state.installments?.length||state.goals?.length||state.rules.length;
+ if(hasExisting&&!(replaceDemo&&state.settings?.demo===true))throw Error('В бюджете уже есть данные. Для защиты от потери операций импорт черновика разрешён только в пустой или демонстрационный бюджет.');
+ return {...state,transactions:[],oneOffs:[],closedPlans:[],opening:{...personalDraft.opening},goals:personalDraft.goals.map(g=>({...g})),installments:personalDraft.installments.map(x=>({...x,payments:x.payments.map(p=>({...p}))})),rules:[
  {id:'salary-7',type:'salary',title:'Зарплата · 7 число',day:7,amount:personalDraft.salary,moveWeekends:true,category:'Зарплата'},
  {id:'salary-23',type:'salary',title:'Зарплата · 23 число',day:23,amount:personalDraft.salary,moveWeekends:true,category:'Зарплата'}],
- openingDate:personalDraft.asOf,undatedObligations:[{id:'chatgpt',title:'ChatGPT',amount:230000,period:'monthly'},{id:'other-subscriptions',title:'Другие подписки',amount:100000,period:'monthly'}],settings:{...state.settings,savingsApr:11,planning:{...state.settings?.planning,dailyTarget:personalDraft.dailyTarget,savingsFixed:0,includeSavingsInDaily:false,startDate:personalDraft.asOf}}};
+ openingDate:personalDraft.asOf,undatedObligations:[{id:'chatgpt',title:'ChatGPT',amount:230000,period:'monthly'},{id:'other-subscriptions',title:'Другие подписки',amount:100000,period:'monthly'}],settings:{...state.settings,demo:false,savingsApr:11,planning:{...state.settings?.planning,dailyTarget:personalDraft.dailyTarget,savingsFixed:0,includeSavingsInDaily:false,startDate:personalDraft.asOf}}};
 }
 
 export function financeForecast(state,today,months=6,scenario='comfortable'){
