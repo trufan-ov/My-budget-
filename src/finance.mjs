@@ -18,8 +18,8 @@ export function goalFundingStatus(state,day){
  const allocated=new Map();
  return (state.goals||[]).map(g=>{
   const accountId=g.fundedAccountId||null;
-  const paid=(state.transactions||[]).filter(t=>t.kind==='expense'&&t.plannedId===g.id&&t.date<=day).reduce((sum,t)=>sum+t.amount,0);
-  const paidFromReserve=(state.transactions||[]).filter(t=>t.kind==='expense'&&t.plannedId===g.id&&(t.accountId||'main')===accountId&&t.date<=day).reduce((sum,t)=>sum+t.amount,0);
+  const paid=(state.transactions||[]).filter(t=>t.kind==='expense'&&t.plannedId===g.id&&t.date<=day&&!t.historical&&(!state.openingDate||t.date>=state.openingDate)).reduce((sum,t)=>sum+t.amount,0);
+  const paidFromReserve=(state.transactions||[]).filter(t=>t.kind==='expense'&&t.plannedId===g.id&&(t.accountId||'main')===accountId&&t.date<=day&&!t.historical&&(!state.openingDate||t.date>=state.openingDate)).reduce((sum,t)=>sum+t.amount,0);
   const closed=(state.closedPlans||[]).includes(g.id);
   const requested=closed?0:Math.max(0,(g.funded||0)-paidFromReserve);
   const outstanding=closed?0:Math.max(0,g.amount-paid);
