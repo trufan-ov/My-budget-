@@ -62,7 +62,8 @@ export function financeForecast(state,today,months=6,scenario='comfortable'){
  let available=initial.available,savings=initial.savings;
  const target=state.settings?.planning?.dailyTarget??0;
  const recent=(state.transactions||[]).filter(t=>t.kind==='expense'&&!t.plannedId&&t.date>=addDays(today,-30)&&t.date<=today);
- const observed=recent.length?Math.round(recent.reduce((a,t)=>a+t.amount,0)/30):target;
+ const observed=recent.length?Math.round(recent.reduce((a,t)=>a+t.amount,0)/30):null;
+ if(scenario==='actual'&&observed===null)throw Error('Недостаточно фактических расходов за последние 30 дней для прогноза по истории');
  const daily=scenario==='economical'?Math.round(target*(1-(state.settings?.planning?.economyPercent??20)/100)):scenario==='actual'?observed:target;
  const rows=[];
  for(let i=0;i<months;i++){
