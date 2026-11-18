@@ -52,3 +52,16 @@ test('subscriptions without dates are not silently assigned a due date',()=>{
  assert.equal(state.undatedObligations.reduce((n,x)=>n+x.amount,0),330000);
  assert.ok(!pendingEvents(state,'2026-11-18','2026-11-22').some(x=>x.category==='Подписки'));
 });
+
+test('personal draft replaces default demo after explicit opt-in',()=>{
+ const current=demo('2026-11-18');
+ const applied=applyPersonalDraft(current,{replaceDemo:true});
+ assert.equal(applied.transactions.length,0);
+ assert.equal(applied.rules.length,2);
+ assert.equal(applied.settings.demo,false);
+ assert.equal(applied.opening.available,346200);
+});
+test('personal draft never silently replaces real operations',()=>{
+ const current={...demo('2026-11-18'),settings:{savingsApr:0,demo:false}};
+ assert.throws(()=>applyPersonalDraft(current,{replaceDemo:true}),/уже есть данные/);
+});
