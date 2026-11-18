@@ -30,11 +30,11 @@ export function goalFundingStatus(state,day){
   return {id:g.id,accountId,requested,funded,paid,unfunded:Math.max(0,outstanding-funded)};
  });
 }
-export function goalEvents(state,start,end){
- const funded=new Map(goalFundingStatus(state,start).map(g=>[g.id,g]));
+export function goalEvents(state,start,end,asOf=start){
+ const funded=new Map(goalFundingStatus(state,asOf).map(g=>[g.id,g]));
  return (state.goals||[]).filter(g=>g.date<=end).map(g=>({id:g.id,date:g.date<start?start:g.date,originalDate:g.date,title:g.title,amount:funded.get(g.id).unfunded,kind:'expense',type:'goal',category:'Цель'}));
 }
-export function pendingEvents(state,start,end){
+export function pendingEvents(state,start,end,asOf=start){
  const actual=state.transactions||[];
  const from=state.settings?.planning?.startDate||start;
  const recurring=futureOccurrences(state,from<start?from:start,end,true).filter(e=>e.kind!=='income'||e.date>=start).map(e=>({...e,originalDate:e.date,date:e.date<start?start:e.date}));
@@ -60,7 +60,7 @@ export function pendingEvents(state,start,end){
   }
   return d.dueDate&&d.dueDate<=end?[{id:'debt-due:'+d.id,debtId:d.id,date:d.dueDate<start?start:d.dueDate,originalDate:d.dueDate,title:d.title,amount:d.principal,kind:'expense',type:'debt',category:'Кредиты'}]:[];
  });
- const all=[...recurring,...overdueOneOffs,...installmentEvents(state,start,end),...goalEvents(state,start,end),...debts];
+ const all=[...recurring,...overdueOneOffs,...installmentEvents(state,start,end),...goalEvents(state,start,end,asOf),...debts];
  return all.map(e=>{
    if(e.type==='debtSchedule')return {...e,remaining:(state.closedPlans||[]).includes(e.id)?0:e.remaining};
    const paid=e.type==='goal'?0:actual.filter(t=>e.type==='debt'?t.debtId===e.debtId:t.plannedId===e.id).reduce((a,t)=>a+(e.type==='debt'?t.principal||0:t.amount),0);
@@ -118,10 +118,10 @@ export function financeForecast(state,today,months=6,scenario='comfortable'){
  const first=new Date(today+'T12:00:00');
  const monthStart=(n)=>{const d=new Date(first.getFullYear(),first.getMonth()+n,1,12);return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0')].join('-');};
  const end=monthStart(months)+'-01';
- const events=pendingEvents(state,start,end),byMonth=new Map();
+ const events=pendingEvents(state,start,end,today),byMonth=new Map();
  // Legacy future-dated goal payments are not in today's account balance.
  // Forecast them as future cash outflows rather than treating them as paid now.
- const futureGoalPayments=(state.transactions||[]).filter(t=>t.kind==='expense'&&t.plannedId&&(state.goals||[]).some(g=>g.id===t.plannedId)&&t.date>=start&&t.date<end&&!t.historical);
+ const futureGoalPayments=(state.transactions||[]).filter(t=>t.kind==='expense'&&t.plannedId&&(state.goals||[]).some(g=>g.id===t.plannedId)&&t.date>=start&&t.date<end&&!t.historical&&(!state.openingDate||t.date>=state.openingDate));
  const futureGoalById=new Map();
  const futureGoalFromReserve=new Map();
  const goalById=new Map((state.goals||[]).map(g=>[g.id,g]));
