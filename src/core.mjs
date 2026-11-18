@@ -42,20 +42,20 @@ export function salaryPeriods(state,today=dateISO(),count=4){
  for(let shift=-2;shift<=5;shift++){const d=new Date(base.getFullYear(),base.getMonth()+shift,1,12);for(const r of salaries){const date=salaryDate(d.getFullYear(),d.getMonth()+1,r.day,r.moveWeekends!==false);events.push({date,rule:r,id:`${r.id}:${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`});}}
  events.sort((a,b)=>a.date.localeCompare(b.date));const unique=events.filter((e,i)=>!i||e.date!==events[i-1].date);
  const idx=Math.max(0,unique.findIndex((e,i)=>e.date<=today&&(!unique[i+1]||unique[i+1].date>today)));
- return unique.slice(idx,idx+count).map((start,i)=>{const end=unique[idx+i+1];if(!end)return null;const from=start.date,to=end.date;const current=from<=today&&today<to;const periodStart=current?today:from;
- const balance=balanceAt(state,current?today:addDays(from,-1));
+ let carry=null;return unique.slice(idx,idx+count).map((start,i)=>{const end=unique[idx+i+1];if(!end)return null;const from=start.date,to=end.date;const current=from<=today&&today<to;const periodStart=current?today:from;
+ const balance=current?balanceAt(state,today):{available:carry??balanceAt(state,addDays(from,-1)).available};
  const salaryTx=state.transactions.find(t=>t.plannedId===start.id);
  const expectedSalary=start.rule.amount;const salaryAmount=salaryTx?.amount??expectedSalary;
  const future=futureOccurrences(state,periodStart,addDays(to,-1));
  const obligations=future.filter(e=>e.kind==='expense').reduce((sum,e)=>sum+e.amount,0);
  const otherIncome=future.filter(e=>e.kind==='income'&&e.id!==start.id).reduce((sum,e)=>sum+e.amount,0);
- const income=current?0:salaryAmount+otherIncome;
+ const income=(current?(!salaryTx&&from===today?0:0):salaryAmount)+otherIncome;
  const days=Math.max(1,diffDays(periodStart,to));
  const fixedSavings=salarySettings(state).fixedSavings;
  const projected=balance.available+income-obligations-fixedSavings;
  const availableDaily=Math.max(0,Math.floor(projected/days));
  const comfort=salarySettings(state).comfortDaily;
- const deficit=Math.max(0,comfort*days-projected);
+ const deficit=Math.max(0,comfort*days-projected);carry=projected-Math.max(0,comfort*days);
  return {from,to,current,days,expectedSalary,salaryAmount,salaryConfirmed:!!salaryTx,opening:balance.available,income,obligations,fixedSavings,projected,availableDaily,comfort,deficit,periodId:start.id,ruleId:start.rule.id};
  }).filter(Boolean);
 }
