@@ -250,3 +250,21 @@ test('unlinked declared reserves do not count as funded cash',async()=>{
  const state={...base,goals:base.goals.map(g=>({...g,funded:300000}))};
  assert.equal(goalFundingStatus(state,'2026-11-18')[0].funded,0);
 });
+
+test('earmarked money on main account cannot be spent again in daily budget',()=>{
+ const base={...blank(),opening:{available:1000000,savings:0},goals:[{id:'trip',title:'Trip',date:'2026-11-20',amount:600000}]};
+ const unfunded=dailyPlan(base,'2026-11-18','2026-11-20');
+ const funded={...base,goals:[{...base.goals[0],funded:600000,fundedAccountId:'main'}]};
+ const reserved=dailyPlan(funded,'2026-11-18','2026-11-20');
+ assert.equal(reserved.maximumDaily,unfunded.maximumDaily);
+ assert.equal(reserved.pending.some(e=>e.id==='trip'),false);
+});
+test('moving reserved savings into a spendable account does not create extra budget',()=>{
+ const base={...blank(),opening:{available:500000,savings:500000},goals:[{id:'trip',title:'Trip',date:'2026-11-20',amount:500000,funded:500000,fundedAccountId:'savings'}]};
+ const before=dailyPlan(base,'2026-11-18','2026-11-20');
+ const moved=record(base,{kind:'transfer',amount:500000,fromAccount:'savings',toAccount:'main',date:'2026-11-18'});
+ const after=dailyPlan(moved,'2026-11-18','2026-11-20');
+ assert.equal(before.maximumDaily,Math.floor(500000/3));
+ assert.equal(after.maximumDaily,Math.floor(500000/3));
+ assert.equal(after.pending.find(e=>e.id==='trip').remaining,500000);
+});
