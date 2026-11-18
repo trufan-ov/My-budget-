@@ -8,6 +8,9 @@ export function debtBalance(debt,transactions=[]){
 export function addDebt(state,{title,type,principal,apr=0,dueDate='',creditLimit=0,graceUntil=''}) {
  if(!['borrowed','lent','creditCard'].includes(type)||!title?.trim()||!Number.isSafeInteger(principal)||principal<=0)throw Error('Проверь параметры долга');
  if(!Number.isFinite(apr)||apr<0||apr>100)throw Error('Некорректная ставка');
+ if(!Number.isSafeInteger(creditLimit)||creditLimit<0)throw Error('Некорректный кредитный лимит');
+ if(type==='creditCard'&&creditLimit>0&&principal>creditLimit)throw Error('Долг превышает кредитный лимит');
+ if(graceUntil&&(!/^\\d{4}-\\d{2}-\\d{2}$/.test(graceUntil)||!Number.isFinite(Date.parse(graceUntil+'T12:00:00Z'))))throw Error('Некорректная дата льготного периода');
  const debt={id:uid(),title:title.trim(),type,principal,apr,dueDate,creditLimit,graceUntil,createdAt:new Date().toISOString()};
  return {...state,debts:[...(state.debts||[]),debt]};
 }
@@ -21,6 +24,15 @@ export function payDebt(state,id,{principal,interest=0,date,accountId='main',pla
  const kind=debt.type==='lent'?'income':'expense';
  const next=record(state,{kind,amount:principal+interest,date,accountId,category:'Долги',note:'Погашение: '+debt.title,debtId:id,principal,interest,...(plannedId?{plannedId}:{})});
  return next;
+}
+export function creditCardStatus(debt,transactions=[],today){
+ if(debt.type!=='creditCard')throw Error('Это не кредитная карта');
+ const owed=debtBalance(debt,transactions).principal;
+ const limit=Number.isSafeInteger(debt.creditLimit)&&debt.creditLimit>0?debt.creditLimit:null;
+ const graceUntil=debt.graceUntil||null;
+ return {owed,limit,availableLimit:limit===null?null:Math.max(0,limit-owed),overLimit:limit!==null&&owed>limit,
+  graceUntil,graceExpired:!!(graceUntil&&today&&today>graceUntil&&owed>0),
+  graceStatus:!graceUntil?'not-configured':!today?'unknown':owed===0?'settled':today>graceUntil?'expired':'active'};
 }
 export function netWorth(state,balances){
  const assets=Object.values(balances).reduce((a,b)=>a+b,0);
