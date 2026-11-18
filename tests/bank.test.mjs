@@ -43,3 +43,8 @@ test('undo imported batch only when all rows are unchanged',async()=>{
  assert.throws(()=>safeImportUndo({...state,transactions:[tx,{id:'b',groupId:'a'}]},batch),/связанные/);
  assert.throws(()=>safeImportUndo(state,{...batch,snapshots:undefined}),/старой партии/);
 });
+
+test('bank import accepts common date formats and timestamps',()=>{
+ const rows=parseBankCSV('Дата;Сумма;Описание\n18/11/2026;-10;one\n2026-11-19T10:22:00;20;two\n2026/11/20;-30;three');
+ assert.deepEqual(rows.map(x=>x.date),['2026-11-18','2026-11-19','2026-11-20']);
+});
