@@ -32,7 +32,7 @@ export function parseBankCSV(text){
  for(const cells of rows){
   let cents;
   if(amountCol>=0&&!(debitCol>=0&&creditCol>=0))cents=bankMoney(cells[amountCol]);
-  else {const debit=bankMoney(cells[debitCol]||'0'),credit=bankMoney(cells[creditCol]||'0');cents=credit-debit;}
+  else {const debit=bankMoney(cells[debitCol]||'0'),credit=bankMoney(cells[creditCol]||'0');if(!Number.isSafeInteger(debit)||!Number.isSafeInteger(credit)||debit!==0&&credit!==0)continue;cents=Math.abs(credit)-Math.abs(debit);}
   if(!Number.isSafeInteger(cents)||cents===0)continue;
   const raw=(cells[dateCol]||'').trim().split(/[ T]/)[0];let date=raw;
   if(/^\d{2}[./]\d{2}[./]\d{4}$/.test(raw)){const [day,month,year]=raw.split(/[./]/);date=`${year}-${month}-${day}`;}
