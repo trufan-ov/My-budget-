@@ -140,3 +140,14 @@ test('personal draft cannot overwrite real debts or extra accounts',async()=>{
  assert.equal(initialized.debts.length,0);
  assert.equal(initialized.accounts.length,0);
 });
+
+test('backup validation rejects malformed financial obligations and dangling debt references',async()=>{
+ const {demo,validateState}=await import('../src/core.mjs');
+ const base=demo('2026-11-18');
+ const loan={id:'loan',type:'borrowed',principal:100000,apr:10,title:'Кредит',schedule:[{date:'2026-12-01',principal:99000,interest:1000,amount:100000}]};
+ assert.equal(validateState({...base,debts:[loan]}),true);
+ assert.throws(()=>validateState({...base,debts:[{...loan,schedule:[{...loan.schedule[0],amount:90000}]}]}),/кредиты/);
+ assert.throws(()=>validateState({...base,goals:[{id:'goal',date:'2026-02-31',amount:5000}]}),/цели/);
+ assert.throws(()=>validateState({...base,installments:[{id:'i',payments:[{id:'p',date:'2026-12-01',amount:-1}]}]}),/рассрочки/);
+ assert.throws(()=>validateState({...base,transactions:[...base.transactions,{id:'debt-tx',kind:'expense',date:'2026-11-18',amount:100,debtId:'missing'}],debts:[loan]}),/отсутствующий долг/);
+});
