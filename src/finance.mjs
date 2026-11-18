@@ -18,7 +18,8 @@ export function goalEvents(state,start,end){
 export function pendingEvents(state,start,end){
  const actual=state.transactions||[];
  const from=state.settings?.planning?.startDate||start;
- const all=[...futureOccurrences(state,from<start?from:start,end,true).map(e=>({...e,originalDate:e.date,date:e.date<start?start:e.date})),...installmentEvents(state,start,end),...goalEvents(state,start,end)];
+ const recurring=futureOccurrences(state,from<start?from:start,end,true).filter(e=>e.kind!=='income'||e.date>=start).map(e=>({...e,originalDate:e.date,date:e.date<start?start:e.date}));
+ const all=[...recurring,...installmentEvents(state,start,end),...goalEvents(state,start,end)];
  return all.map(e=>{
    const paid=actual.filter(t=>t.plannedId===e.id).reduce((a,t)=>a+t.amount,0);
    const closed=(state.closedPlans||[]).includes(e.id);
@@ -26,43 +27,21 @@ export function pendingEvents(state,start,end){
  }).filter(e=>e.remaining>0);
 }
 export function dailyPlan(state,today,end){
- const balance=balanceAt(state,today);
- const target=Math.max(0,state.settings?.planning?.dailyTarget||0);
+ const balance=balanceAt(state,today),target=Math.max(0,state.settings?.planning?.dailyTarget??0);
  const days=Math.max(1,diffDays(today,addDays(end,1)));
- const included=state.settings?.planning?.includeSavingsInDaily===true;
- const opening=balance.available+(included?balance.savings:0);
- const pending=pendingEvents(state,today,end);
- const incomes=pending.filter(e=>e.kind==='income');
- const expenses=pending.filter(e=>e.kind!=='income');
- let cash=opening, safe=Infinity,firstShortfall=null;
- for(let i=0;i<days;i++){
-   const day=addDays(today,i);
-   // Conservative intraday liquidity: expenses before uncertain income on the same date.
-   const due=expenses.filter(e=>e.date===day).reduce((a,e)=>a+e.remaining,0);
-   const before=cash-due;
-   if(before<0&&!firstShortfall)firstShortfall={date:day,amount:-before};
-   safe=Math.min(safe,Math.floor(Math.max(0,before)/(i+1)));
-   cash=before+incomes.filter(e=>e.date===day).reduce((a,e)=>a+e.remaining,0);
- }
- // Maximum uniform spend that keeps all daily closing balances nonnegative.
- let cumulative=opening,cap=Infinity,shortfall=null;
- for(let i=0;i<days;i++){
-   const day=addDays(today,i);
-   const due=expenses.filter(e=>e.date===day).reduce((a,e)=>a+e.remaining,0);
-   const incoming=incomes.filter(e=>e.date===day).reduce((a,e)=>a+e.remaining,0);
-   if(cumulative-due<0&&!shortfall)shortfall={date:day,amount:due-cumulative};
-   cumulative+=incoming-due;
-   cap=Math.min(cap,Math.floor(Math.max(0,cumulative)/(i+1)));
- }
- const remaining=opening+incomes.reduce((a,e)=>a+e.remaining,0)-expenses.reduce((a,e)=>a+e.remaining,0);
- return {available:Math.max(0,remaining),free:remaining,deficit:Math.max(0,-remaining),daily:Math.max(0,Math.min(target||Infinity,cap)),maximumDaily:Math.max(0,cap),days,firstShortfall:shortfall||firstShortfall,pending};
+ const opening=balance.available+(state.settings?.planning?.includeSavingsInDaily?balance.savings:0);
+ const pending=pendingEvents(state,today,end),byDate=new Map();
+ for(const e of pending){const item=byDate.get(e.date)||{income:0,expense:0};item[e.kind==='income'?'income':'expense']+=e.remaining;byDate.set(e.date,item);}
+ let running=opening,cap=Infinity,firstShortfall=null;
+ for(let i=0;i<days;i++){const day=addDays(today,i),e=byDate.get(day)||{income:0,expense:0};running+=e.income-e.expense;if(running<0&&!firstShortfall)firstShortfall={date:day,amount:-running};cap=Math.min(cap,Math.floor(Math.max(0,running)/(i+1)));}
+ return {available:Math.max(0,running),free:running,deficit:Math.max(0,-running),daily:Math.max(0,Math.min(target,cap)),maximumDaily:Math.max(0,cap),days,firstShortfall,pending};
 }
 export function applyPersonalDraft(state){
- if(state.transactions.length||state.oneOffs.length||state.installments?.length||state.goals?.length)throw Error('Предзаполнение доступно только для пустого бюджета. Сначала сохрани резервную копию.');
+ if(state.transactions.length||state.oneOffs.length||state.installments?.length||state.goals?.length||state.rules.length)throw Error('Предзаполнение доступно только для пустого бюджета. Сначала сохрани резервную копию.');
  return {...state,opening:{...personalDraft.opening},goals:personalDraft.goals.map(g=>({...g})),installments:personalDraft.installments.map(x=>({...x,payments:x.payments.map(p=>({...p}))})),rules:[
  {id:'salary-7',type:'salary',title:'Зарплата · 7 число',day:7,amount:personalDraft.salary,moveWeekends:true,category:'Зарплата'},
  {id:'salary-23',type:'salary',title:'Зарплата · 23 число',day:23,amount:personalDraft.salary,moveWeekends:true,category:'Зарплата'}],
- settings:{...state.settings,savingsApr:11,planning:{...state.settings?.planning,dailyTarget:personalDraft.dailyTarget,savingsFixed:0,includeSavingsInDaily:false,startDate:personalDraft.asOf}}};
+ openingDate:personalDraft.asOf,settings:{...state.settings,savingsApr:11,planning:{...state.settings?.planning,dailyTarget:personalDraft.dailyTarget,savingsFixed:0,includeSavingsInDaily:false,startDate:personalDraft.asOf}}};
 }
 
 export function financeForecast(state,today,months=6){
