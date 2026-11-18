@@ -326,3 +326,27 @@ test('closing a funded goal releases its earmark and removes future expense',asy
  const reopened={...closed,closedPlans:[]};
  assert.equal(goalFundingStatus(reopened,'2026-11-18')[0].funded,600000);
 });
+
+test('editing recorded goal payment recalculates reserve, balance and future forecast',async()=>{
+ const {goalFundingStatus}=await import('../src/finance.mjs');
+ const base={...blank(),opening:{available:500000,savings:600000},goals:[{id:'trip',title:'Trip',date:'2026-12-05',amount:600000,funded:500000,fundedAccountId:'savings'}]};
+ const first=record(base,{kind:'expense',accountId:'savings',amount:200000,date:'2026-11-18',plannedId:'trip',category:'Цель'});
+ const original=first.transactions.at(-1);
+ const edited=record({...first,transactions:first.transactions.filter(t=>t.id!==original.id)},{...original,amount:300000,accountId:'main'});
+ const funding=goalFundingStatus(edited,'2026-11-18')[0];
+ assert.equal(funding.paid,300000);
+ assert.equal(funding.funded,300000);
+ assert.equal(funding.unfunded,0);
+ assert.equal(accountBalances(edited,'2026-11-18').main,200000);
+ assert.equal(accountBalances(edited,'2026-11-18').savings,600000);
+ assert.equal(financeForecast(edited,'2026-11-18',3)[1].savings,300000);
+});
+test('deleting goal payment restores reserve and unpaid amount',async()=>{
+ const {goalFundingStatus}=await import('../src/finance.mjs');
+ const base={...blank(),opening:{available:500000,savings:600000},goals:[{id:'trip',title:'Trip',date:'2026-12-05',amount:600000,funded:500000,fundedAccountId:'savings'}]};
+ const first=record(base,{kind:'expense',accountId:'savings',amount:200000,date:'2026-11-18',plannedId:'trip',category:'Цель'});
+ const restored=deleteTransaction(first,first.transactions.at(-1).id);
+ assert.equal(goalFundingStatus(restored,'2026-11-18')[0].funded,500000);
+ assert.equal(goalFundingStatus(restored,'2026-11-18')[0].paid,0);
+ assert.equal(pendingEvents(restored,'2026-11-18','2026-12-10').find(e=>e.id==='trip').remaining,100000);
+});
