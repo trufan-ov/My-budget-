@@ -96,3 +96,18 @@ test('debts support principal and interest split',async()=>{
  assert.equal(debtBalance(created.debts[0],paid.transactions).principal,200000);
  assert.equal(netWorth(paid,{main:890000,savings:0}),690000);
 });
+
+test('credit principal due is reserved and reduced after partial payment',async()=>{
+ const {addDebt,payDebt}=await import('../src/debts.mjs');
+ const state={...blank(),opening:{available:1000000,savings:0}};
+ const added=addDebt(state,{title:'Кредит',type:'borrowed',principal:300000,apr:0,dueDate:'2026-11-25'});
+ const before=pendingEvents(added,'2026-11-18','2026-11-30').find(e=>e.type==='debt');
+ assert.equal(before.remaining,300000);
+ const paid=payDebt(added,added.debts[0].id,{principal:100000,date:'2026-11-18'});
+ assert.equal(pendingEvents(paid,'2026-11-18','2026-11-30').find(e=>e.type==='debt').remaining,200000);
+});
+test('recurring income is classified as income',async()=>{
+ const {futureOccurrences}=await import('../src/core.mjs');
+ const state={...blank(),rules:[{id:'rent',type:'income',title:'Доход',day:20,amount:100000}]};
+ assert.equal(futureOccurrences(state,'2026-11-18','2026-11-30')[0].kind,'income');
+});
