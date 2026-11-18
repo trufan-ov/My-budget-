@@ -222,7 +222,7 @@ test('forecast rejects invalid savings rates instead of silently crediting inter
 
 test('already funded goal reserves only outstanding portion without altering cash',()=>{
  const base=applyPersonalDraft(blank());
- const funded={...base,goals:base.goals.map(g=>g.id==='stag'?{...g,funded:300000}:g)};
+ const funded={...base,goals:base.goals.map(g=>g.id==='stag'?{...g,funded:300000,fundedAccountId:'savings'}:g)};
  const original=pendingEvents(base,'2026-11-18','2026-12-06').find(e=>e.id==='stag');
  const reduced=pendingEvents(funded,'2026-11-18','2026-12-06').find(e=>e.id==='stag');
  assert.equal(original.remaining,500000);
@@ -231,6 +231,22 @@ test('already funded goal reserves only outstanding portion without altering cas
 });
 test('fully funded goals no longer reserve money a second time',()=>{
  const base=applyPersonalDraft(blank());
- const funded={...base,goals:base.goals.map(g=>g.id==='stag'?{...g,funded:g.amount}:g)};
+ const funded={...base,goals:base.goals.map(g=>g.id==='stag'?{...g,funded:g.amount,fundedAccountId:'savings'}:g)};
  assert.equal(pendingEvents(funded,'2026-11-18','2026-12-06').some(e=>e.id==='stag'),false);
+});
+
+test('two goals cannot reserve the same savings balance twice',async()=>{
+ const {goalFundingStatus}=await import('../src/finance.mjs');
+ const base={...applyPersonalDraft(blank()),opening:{available:0,savings:500000}};
+ const state={...base,goals:[{id:'a',title:'A',date:'2026-12-01',amount:500000,funded:500000,fundedAccountId:'savings'},{id:'b',title:'B',date:'2026-12-02',amount:500000,funded:500000,fundedAccountId:'savings'}]};
+ const funding=goalFundingStatus(state,'2026-11-18');
+ assert.equal(funding[0].funded,500000);
+ assert.equal(funding[1].funded,0);
+ assert.equal(pendingEvents(state,'2026-11-18','2026-12-05').find(e=>e.id==='b').remaining,500000);
+});
+test('unlinked declared reserves do not count as funded cash',async()=>{
+ const {goalFundingStatus}=await import('../src/finance.mjs');
+ const base=applyPersonalDraft(blank());
+ const state={...base,goals:base.goals.map(g=>({...g,funded:300000}))};
+ assert.equal(goalFundingStatus(state,'2026-11-18')[0].funded,0);
 });
