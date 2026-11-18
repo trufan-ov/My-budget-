@@ -89,7 +89,7 @@ export function financeForecast(state,today,months=6,scenario='comfortable'){
  for(let i=0;i<months;i++){
    const month=monthStart(i),next=monthStart(i+1);
    const from=i===0?start:month+'-01';
-   const days=Math.max(0,diffDays(from,next));
+   const days=Math.max(0,diffDays(from,next+'-01'));
    const p=byMonth.get(month)||{income:0,expense:0,savings:0};
    available+=p.income-p.expense-daily*days;
    savings+=p.savings;
