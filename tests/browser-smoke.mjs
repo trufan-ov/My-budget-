@@ -60,11 +60,23 @@ try{
  await page.getByText('Тестовый долг',{exact:true}).first().waitFor();
  await page.locator('.mobile-nav [data-nav="more"]').click();
  await page.locator('.more-link[data-nav="settings"]').click();
- await page.locator('#bank-csv').setInputFiles({name:'statement.csv',mimeType:'text/csv',buffer:Buffer.from('Дата;Сумма;Описание\n19.11.2026;-50;Тестовая покупка\n')});
+ const statement={name:'statement.csv',mimeType:'text/csv',buffer:Buffer.from('Дата;Сумма;Описание\n19.11.2026;(50,01);Тестовая покупка\n19.11.2026;15 USD;Другая валюта\n')};
+ await page.locator('#bank-csv').setInputFiles(statement);
+ await page.getByText(/Строк с некорректной датой или суммой: 1/).waitFor();
+ await page.locator('#bank-csv').setInputFiles({name:'invalid.csv',mimeType:'text/csv',buffer:Buffer.from('Некорректный файл')});
+ await page.getByText('CSV не содержит операций',{exact:true}).waitFor();
+ assert.equal(await page.locator('[data-import-confirm]').count(),0);
+ await page.locator('#bank-csv').setInputFiles(statement);
  await page.getByText('Тестовая покупка',{exact:true}).first().waitFor();
  assert.equal(await page.locator('[data-bank-page]').count(),2);
  await page.locator('[data-import-confirm]').click();
  await page.getByText('statement.csv',{exact:true}).first().waitFor();
+ const imported=await page.evaluate(async()=>{
+  const {load}=await import('/src/storage.mjs');
+  const tx=(await load()).transactions.find(tx=>tx.note==='Тестовая покупка');
+  return [tx.kind,tx.amount];
+ });
+ assert.deepEqual(imported,['expense',5001]);
  await page.locator('[data-import-undo]').click();
  await page.getByText('Импортов пока нет',{exact:true}).first().waitFor();
  const stalePage=await page.context().newPage();
