@@ -32,7 +32,9 @@ test('goals reduce affordable daily spend before deadlines',()=>{
 test('long-range forecast includes installments',()=>{
  const s=applyPersonalDraft(blank());
  const base=financeForecast(s,'2026-11-18',3);
- assert.ok(base[0].available<base[1].available+10000000);
+ const without=financeForecast({...s,installments:[]},'2026-11-18',3);
+ assert.equal(base[0].available,without[0].available-2048371);
+ assert.equal(base[1].available,without[1].available-3106413);
 });
 
 test('overdue installment remains reserved after its deadline',()=>{
