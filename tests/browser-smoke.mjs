@@ -129,6 +129,22 @@ try{
  });
  assert.equal(revision.amount,25000);
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
+ await page.evaluate(async()=>{
+  const {load,save}=await import('/src/storage.mjs');
+  const {dateISO,addDays}=await import('/src/core.mjs');
+  const old=await load(),today=dateISO();
+  await save({...old,openingDate:today,opening:{available:100000,savings:0},rules:[],
+   goals:[{id:'historical-goal',title:'Цель с архивной операцией',date:addDays(today,2),amount:50000}],
+   transactions:[{id:'archived-payment',plannedId:'historical-goal',date:addDays(today,-1),kind:'expense',amount:20000,historical:true}],
+  },old);
+ });
+ await page.reload();
+ await page.locator('.mobile-nav [data-nav="plan"]').click();
+ await page.locator('[data-plan-pay="historical-goal"]').click();
+ const goalForm=page.locator('form[data-form="planpay:historical-goal"]');
+ assert.equal(await goalForm.locator('[name="amount"]').inputValue(),'500');
+ await goalForm.locator('button[type="submit"]').click();
+ await page.getByText(/Цель оплачена/).waitFor();
  assert.deepEqual(errors,[]);
  console.log('PASS: iPhone-size personal draft click, goals, 10 installments, subscriptions, persistence, concurrent edits, backup round-trip, write rollback, service worker cache, no JS errors');
 }finally{await browser.close();}
