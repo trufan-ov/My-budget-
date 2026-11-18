@@ -44,18 +44,26 @@ export function applyPersonalDraft(state){
  openingDate:personalDraft.asOf,settings:{...state.settings,savingsApr:11,planning:{...state.settings?.planning,dailyTarget:personalDraft.dailyTarget,savingsFixed:0,includeSavingsInDaily:false,startDate:personalDraft.asOf}}};
 }
 
-export function financeForecast(state,today,months=6){
- const base=forecast(state,today,months);
- const end=addDays(today,months*32);
- const events=[...installmentEvents(state,addDays(today,1),end),...goalEvents(state,addDays(today,1),end)];
- const completed=new Set(state.closedPlans||[]);
- let cumulative=0;
- return base.map(row=>{
-   const monthEvents=events.filter(e=>e.date.slice(0,7)===row.month&&!completed.has(e.id));
-   for(const e of monthEvents){
-     const paid=(state.transactions||[]).filter(t=>t.plannedId===e.id).reduce((a,t)=>a+t.amount,0);
-     cumulative+=Math.max(0,e.amount-paid);
-   }
-   return {...row,available:row.available-cumulative,total:row.total-cumulative};
- });
+export function financeForecast(state,today,months=6,scenario='comfortable'){
+ const initial=balanceAt(state,today),start=addDays(today,1);
+ const first=new Date(today+'T12:00:00');
+ const monthStart=(n)=>{const d=new Date(first.getFullYear(),first.getMonth()+n,1,12);return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0')].join('-');};
+ const end=monthStart(months)+'-01';
+ const events=pendingEvents(state,start,end),byMonth=new Map();
+ for(const e of events){const month=e.date.slice(0,7),p=byMonth.get(month)||{income:0,expense:0};p[e.kind==='income'?'income':'expense']+=e.remaining;byMonth.set(month,p);}
+ let available=initial.available,savings=initial.savings;
+ const target=state.settings?.planning?.dailyTarget??0;
+ const daily=scenario==='economical'?Math.round(target*(1-(state.settings?.planning?.economyPercent??20)/100)):scenario==='actual'?(state.settings?.planning?.historicalDaily??target):target;
+ const rows=[];
+ for(let i=0;i<months;i++){
+   const month=monthStart(i),next=monthStart(i+1);
+   const from=i===0?start:month+'-01';
+   const days=Math.max(0,diffDays(from,next));
+   const p=byMonth.get(month)||{income:0,expense:0};
+   available+=p.income-p.expense-daily*days;
+   const interest=Math.max(0,Math.round(Math.max(0,savings)*Number(state.settings?.savingsApr||0)/1200));
+   savings+=interest;
+   rows.push({month,available,savings,total:available+savings,interest,events:events.filter(e=>e.date.slice(0,7)===month).length,daily});
+ }
+ return rows;
 }
