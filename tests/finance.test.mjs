@@ -206,3 +206,9 @@ test('overdue one-off obligations stay pending until paid or closed',()=>{
  assert.equal(pendingEvents(partial,'2026-11-18','2026-11-30').find(e=>e.id==='rent-old').remaining,150000);
  assert.equal(pendingEvents({...state,closedPlans:['rent-old']},'2026-11-18','2026-11-30').some(e=>e.id==='rent-old'),false);
 });
+
+test('overdue unconfirmed one-off income is never credited as future cash',()=>{
+ const state={...blank(),opening:{available:100000,savings:0},oneOffs:[{id:'late-bonus',title:'Не полученный бонус',kind:'income',date:'2026-11-10',amount:900000}]};
+ assert.equal(pendingEvents(state,'2026-11-18','2026-11-30').some(e=>e.id==='late-bonus'),false);
+ assert.equal(dailyPlan(state,'2026-11-18','2026-11-18').maximumDaily,100000);
+});
