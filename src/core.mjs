@@ -14,7 +14,7 @@ export function accountList(state){
  const base=[{id:'main',name:'Основной счёт',opening:state.opening.available,includeInDaily:true},{id:'savings',name:'Копилка',opening:state.opening.savings,includeInDaily:false}];
  return [...base,...(state.accounts||[]).filter(a=>!['main','savings'].includes(a.id))];
 }
-function ledgerEntries(state,day='9999-12-31'){
+export function ledgerEntries(state,day='9999-12-31'){
  return state.transactions.filter(t=>t.date<=day&&!t.historical&&(!state.openingDate||t.date>=state.openingDate))
   .sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
 }
@@ -115,7 +115,21 @@ if(occurrence<start||occurrence>end||(rule.start&&occurrence<rule.start)||(rule.
 const id=rule.id+':'+period;
 out.push({id,ruleId:rule.id,date:occurrence,kind:['salary','income'].includes(rule.type)?'income':'expense',amount:rule.amount,title:rule.title,category:rule.category||'Обязательное',type:rule.type});}}
 for(const item of state.oneOffs){if(item.date>=start&&item.date<=end)out.push({...item,kind:item.kind||'expense',type:'oneOff'});}
-return out.filter(o=>includeCompleted||!state.transactions.some(t=>t.plannedId===o.id)).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));}
+out.sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
+if(includeCompleted)return out;
+const paid=new Map();
+for(const tx of state.transactions){
+ if(tx.plannedId&&!tx.historical&&(!state.openingDate||tx.date>=state.openingDate)){
+  paid.set(tx.plannedId,(paid.get(tx.plannedId)||0)+tx.amount);
+ }
+}
+return out.flatMap(event=>{
+ const amount=paid.get(event.id)||0;
+ if(!amount)return [event];
+ if(event.kind==='expense'&&amount<event.amount)return [{...event,amount:event.amount-amount}];
+ return [];
+});
+}
 export function nextSalaryDate(state,today){const until=addDays(today,90);return futureOccurrences(state,addDays(today,1),until).filter(x=>x.kind==='income'&&x.type==='salary').map(x=>x.date).sort()[0]||addDays(today,14);}
 export function budgetSummary(state,today=dateISO()){const current=balanceAt(state,today),salary=nextSalaryDate(state,today),last=addDays(salary,-1),remaining=Math.max(1,diffDays(today,salary));const upcoming=futureOccurrences(state,today,last).filter(x=>x.kind==='expense');const reserved=upcoming.reduce((sum,x)=>sum+x.amount,0);const free=current.available-reserved;return {current,nextSalary:salary,days:remaining,reserved,free,daily:Math.max(0,Math.floor(free/remaining)),upcoming};}
 // Salary-cycle planning. All amounts are integer kopecks.

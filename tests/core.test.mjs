@@ -67,3 +67,15 @@ test('regular rule edit is reflected in both obligation and forecast',async()=>{
  const january=budget=>financeForecast(budget,'2027-12-31',3).find(row=>row.month==='2028-01').available;
  assert.equal(january(state)-january(next),200);
 });
+
+test('salary-period budget keeps unpaid portion after an actual partial expense',async()=>{
+ const {salaryPeriods}=await import('../src/core.mjs');
+ const state={...blank(),opening:{available:50000,savings:0},rules:[
+  {id:'salary',type:'salary',day:1,title:'Salary',amount:50000,moveWeekends:false},
+  {id:'rent',type:'expense',day:20,title:'Rent',amount:10000}],
+  transactions:[{id:'partial',kind:'expense',plannedId:'rent:2028-01',date:'2028-01-10',amount:4000}]};
+ const [period]=salaryPeriods(state,'2028-01-15',1);
+ assert.equal(period.opening,46000);
+ assert.equal(period.obligations,6000);
+ assert.equal(period.projected,40000);
+});

@@ -535,3 +535,58 @@ test('goal payment selection ignores historical and pre-opening entries',async()
  assert.deepEqual(goalPayments(state,'trip','2026-11-30').map(t=>t.id),['on-opening']);
  assert.deepEqual(goalPayments(state,'trip').map(t=>t.id),['on-opening','later']);
 });
+
+test('overdue one-off with a planning start reserves exactly its unpaid balance',()=>{
+ const state={...blank(),openingDate:'2027-12-01',opening:{available:100000,savings:0},
+  settings:{savingsApr:0,planning:{startDate:'2027-12-01'}},
+  oneOffs:[{id:'bill',kind:'expense',amount:20000,date:'2027-12-20'}],
+  transactions:[{id:'past',kind:'expense',date:'2027-12-26',plannedId:'bill',amount:7000},
+   {id:'archive',kind:'expense',historical:true,date:'2027-12-20',plannedId:'bill',amount:5000}]};
+ const today='2027-12-30';
+ assert.deepEqual(pendingEvents(state,today,'2028-01-31').map(e=>e.remaining),[13000]);
+ assert.equal(accountBalances(state,today).main,93000);
+ assert.equal(dailyPlan(state,today,'2028-01-31').free,80000);
+ for(const months of [3,6,12])assert.equal(financeForecast(state,today,months).at(-1).available,80000);
+});
+
+test('early and late instalments of a recurring bill preserve account and month boundaries',()=>{
+ const state={...blank(),opening:{available:100000,savings:50000},
+  rules:[{id:'bill',type:'expense',day:10,amount:20000,start:'2028-01-01',end:'2028-01-31'}],
+  transactions:[{id:'early',kind:'expense',date:'2027-12-31',plannedId:'bill:2028-01',amount:3000},
+   {id:'late',kind:'expense',date:'2028-02-01',accountId:'savings',plannedId:'bill:2028-01',amount:7000}]};
+ const today='2027-12-30';
+ assert.equal(accountBalances(state,today).main,100000);
+ for(const months of [3,6,12]){
+  const rows=financeForecast(state,today,months);
+  assert.deepEqual(rows.slice(0,3).map(r=>[r.available,r.savings]),[[97000,50000],[80000,50000],[87000,43000]]);
+  assert.equal(rows.at(-1).total,130000);
+ }
+ for(const [end,free] of [['2027-12-31',97000],['2028-01-31',80000],['2028-02-29',87000]]){
+  assert.equal(dailyPlan(state,today,end).free,free);
+ }
+});
+
+test('early debt principal and scheduled interest use the account of the actual payment',()=>{
+ const state={...blank(),opening:{available:100000,savings:50000},
+  debts:[{id:'loan',type:'borrowed',title:'Loan',principal:20000,schedule:[{date:'2028-01-05',principal:20000,interest:1000,amount:21000}]}],
+  transactions:[{id:'prepay',kind:'expense',date:'2027-12-31',debtId:'loan',principal:5000,interest:200,amount:5200},
+   {id:'scheduled',kind:'expense',date:'2028-02-02',accountId:'savings',debtId:'loan',plannedId:'debt-schedule:loan:0',principal:3000,interest:500,amount:3500}]};
+ for(const months of [3,6,12]){
+  const rows=financeForecast(state,'2027-12-30',months);
+  assert.deepEqual(rows.slice(0,3).map(r=>[r.available,r.savings]),[[94800,50000],[78800,50000],[82300,46500]]);
+ }
+ assert.equal(dailyPlan(state,'2027-12-30','2028-02-29').free,82300);
+});
+
+test('future repayment of an unscheduled debt cannot hide its overdue shortfall',()=>{
+ const state={...blank(),opening:{available:12000,savings:0},
+  debts:[{id:'loan',type:'borrowed',principal:20000,dueDate:'2027-12-30'}],
+  transactions:[{id:'late',debtId:'loan',kind:'expense',principal:5000,interest:100,amount:5100,date:'2028-01-02'}]};
+ const plan=dailyPlan(state,'2027-12-29','2028-01-31');
+ assert.deepEqual(plan.firstShortfall,{date:'2027-12-30',amount:8000});
+ for(const months of [3,6,12]){
+  const rows=financeForecast(state,'2027-12-29',months);
+  assert.deepEqual(rows.slice(0,2).map(row=>row.available),[-8000,-8100]);
+ }
+ assert.equal(plan.free,-8100);
+});
