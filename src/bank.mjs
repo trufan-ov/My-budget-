@@ -34,8 +34,9 @@ export function parseBankCSV(text){
   if(amountCol>=0&&!(debitCol>=0&&creditCol>=0))cents=bankMoney(cells[amountCol]);
   else {const debit=bankMoney(cells[debitCol]||'0'),credit=bankMoney(cells[creditCol]||'0');cents=credit-debit;}
   if(!Number.isSafeInteger(cents)||cents===0)continue;
-  const raw=(cells[dateCol]||'').trim().split(' ')[0];let date=raw;
-  if(/^\d{2}\.\d{2}\.\d{4}$/.test(raw)){const [day,month,year]=raw.split('.');date=`${year}-${month}-${day}`;}
+  const raw=(cells[dateCol]||'').trim().split(/[ T]/)[0];let date=raw;
+  if(/^\d{2}[./]\d{2}[./]\d{4}$/.test(raw)){const [day,month,year]=raw.split(/[./]/);date=`${year}-${month}-${day}`;}
+  else if(/^\d{4}\/\d{2}\/\d{2}$/.test(raw))date=raw.replace(/\//g,'-');
   const d=new Date(date+'T12:00:00Z');
   if(!/^\d{4}-\d{2}-\d{2}$/.test(date)||!Number.isFinite(d.valueOf())||d.toISOString().slice(0,10)!==date)continue;
   parsed.push({kind:cents>0?'income':'expense',date,amount:Math.abs(cents),category:'Банк · без категории',note:(noteCol>=0?cells[noteCol]:'')||'Банковская операция'});
