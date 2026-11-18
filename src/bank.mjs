@@ -1,7 +1,7 @@
 // Bank statement parser. No network access or third-party dependencies.
 export function csvRows(input,separator){
  const text=String(input).replace(/^\uFEFF/,'');
- if(!separator){const header=text.split(/\r?\n/,1)[0];separator=(header.match(/;/g)||[]).length>=(header.match(/,/g)||[]).length?';':',';}
+ if(!separator){const header=text.split(/\r?\n/,1)[0];const counts=[[';',(header.match(/;/g)||[]).length],[',',(header.match(/,/g)||[]).length],['\t',(header.match(/\t/g)||[]).length]];separator=counts.sort((a,b)=>b[1]-a[1])[0][0];}
  const rows=[];let row=[],field='',quoted=false;
  for(let i=0;i<text.length;i++){
   const c=text[i];
