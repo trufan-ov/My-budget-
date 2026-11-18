@@ -129,3 +129,14 @@ test('historical forecast uses observed expenses when available',()=>{
  const rows=financeForecast(state,'2026-11-18',3,'actual');
  assert.equal(rows[0].daily,1000);
 });
+
+test('personal draft cannot overwrite real debts or extra accounts',async()=>{
+ const {applyPersonalDraft}=await import('../src/finance.mjs');
+ const {demo}=await import('../src/core.mjs');
+ const blank={...demo('2026-11-18'),transactions:[],rules:[],oneOffs:[],settings:{savingsApr:0,demo:false}};
+ assert.throws(()=>applyPersonalDraft({...blank,debts:[{id:'debt'}]}),/уже есть данные/);
+ assert.throws(()=>applyPersonalDraft({...blank,accounts:[{id:'cash',opening:100}]}),/уже есть данные/);
+ const initialized=applyPersonalDraft(blank);
+ assert.equal(initialized.debts.length,0);
+ assert.equal(initialized.accounts.length,0);
+});
