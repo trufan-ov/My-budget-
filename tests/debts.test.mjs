@@ -23,3 +23,17 @@ test('month-end due dates clamp to valid dates',()=>{
 test('invalid amortization settings are rejected',()=>{
  assert.throws(()=>repaymentSchedule({principal:100,apr:0,months:0,startDate:'2026-12-18'}));
 });
+
+test('scheduled debt payment is matched to planned event without double counting',async()=>{
+ const {addDebt,payDebt}=await import('../src/debts.mjs');
+ const {pendingEvents}=await import('../src/finance.mjs');
+ const state={openingDate:'2026-11-18',opening:{available:1000000,savings:0},accounts:[],transactions:[],rules:[],oneOffs:[],installments:[],goals:[],closedPlans:[],settings:{planning:{startDate:'2026-11-18'}}};
+ let created=addDebt(state,{title:'Кредит',type:'borrowed',principal:300000,apr:0,dueDate:'2026-12-18'});
+ const d=created.debts[0],schedule=repaymentSchedule({principal:300000,apr:0,months:3,startDate:'2026-12-18'});
+ created={...created,debts:[{...d,schedule}]};
+ const due=pendingEvents(created,'2026-11-18','2027-03-18').filter(e=>e.type==='debtSchedule');
+ assert.equal(due.length,3);
+ assert.equal(due.reduce((n,e)=>n+e.amount,0),300000);
+ const paid=payDebt(created,d.id,{principal:due[0].principal,interest:due[0].interest,date:'2026-12-18',plannedId:due[0].id});
+ assert.equal(pendingEvents(paid,'2026-11-18','2027-03-18').filter(e=>e.type==='debtSchedule').length,2);
+});
