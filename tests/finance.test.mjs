@@ -513,3 +513,25 @@ test('multiple late future goal payments do not advance credits to due month',()
  assert.equal(rows[1].available,500000);
  assert.equal(rows[2].available,500000);
 });
+
+test('daily goal budget keeps earlier deadline shortfall before a future late payment',()=>{
+ const base={...blank(),opening:{available:300000,savings:0},goals:[{id:'late',title:'Late',date:'2026-11-20',amount:500000,funded:0}]};
+ const state=record(base,{kind:'expense',accountId:'main',amount:250000,date:'2026-11-25',plannedId:'late'});
+ const plan=dailyPlan(state,'2026-11-18','2026-11-30');
+ assert.deepEqual(plan.firstShortfall,{date:'2026-11-20',amount:200000});
+ assert.equal(plan.free,-200000);
+ assert.equal(financeForecast(state,'2026-11-18',3)[0].available,plan.free);
+});
+
+test('goal payment selection ignores historical and pre-opening entries',async()=>{
+ const {goalPayments}=await import('../src/finance.mjs');
+ const tx={kind:'expense',plannedId:'trip',amount:100};
+ const state={openingDate:'2026-11-18',transactions:[
+  {...tx,id:'excluding-history',historical:true,date:'2026-11-19'},
+  {...tx,id:'excluding-old',date:'2026-11-17'},
+  {...tx,id:'on-opening',date:'2026-11-18'},
+  {...tx,id:'later',date:'2026-12-01'},
+ ]};
+ assert.deepEqual(goalPayments(state,'trip','2026-11-30').map(t=>t.id),['on-opening']);
+ assert.deepEqual(goalPayments(state,'trip').map(t=>t.id),['on-opening','later']);
+});

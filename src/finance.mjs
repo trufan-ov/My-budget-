@@ -12,14 +12,19 @@ export const personalDraft = {
 export function installmentEvents(state,start,end){
  return (state.installments||[]).flatMap(loan=>(loan.payments||[]).filter(p=>p.date<=end).map(p=>({id:p.id,date:p.date<start?start:p.date,originalDate:p.date,title:loan.title,amount:p.amount,kind:'expense',type:'installment',category:'Рассрочка'})));
 }
+export function goalPayments(state,goalId,through='9999-12-31'){
+ return (state.transactions||[]).filter(t=>t.kind==='expense'&&t.plannedId===goalId&&t.date<=through&&!t.historical&&(!state.openingDate||t.date>=state.openingDate));
+}
+
 export function goalFundingStatus(state,day){
  if(!(state.goals||[]).length)return [];
  const balances=accountBalances(state,day);
  const allocated=new Map();
  return (state.goals||[]).map(g=>{
   const accountId=g.fundedAccountId||null;
-  const paid=(state.transactions||[]).filter(t=>t.kind==='expense'&&t.plannedId===g.id&&t.date<=day&&!t.historical&&(!state.openingDate||t.date>=state.openingDate)).reduce((sum,t)=>sum+t.amount,0);
-  const paidFromReserve=(state.transactions||[]).filter(t=>t.kind==='expense'&&t.plannedId===g.id&&(t.accountId||'main')===accountId&&t.date<=day&&!t.historical&&(!state.openingDate||t.date>=state.openingDate)).reduce((sum,t)=>sum+t.amount,0);
+  const payments=goalPayments(state,g.id,day);
+  const paid=payments.reduce((sum,t)=>sum+t.amount,0);
+  const paidFromReserve=payments.filter(t=>(t.accountId||'main')===accountId).reduce((sum,t)=>sum+t.amount,0);
   const closed=(state.closedPlans||[]).includes(g.id);
   const requested=closed?0:Math.max(0,(g.funded||0)-paidFromReserve);
   const outstanding=closed?0:Math.max(0,g.amount-paid);
@@ -81,24 +86,23 @@ export function dailyPlan(state,today,end){
  // Future-dated legacy goal transactions are absent from today's real balance.
  // Consume earmarked money first when payment comes from its reserve account.
  const future=(state.transactions||[]).filter(t=>t.kind==='expense'&&t.plannedId&&funding.has(t.plannedId)&&t.date>today&&t.date<=end&&!t.historical&&(!state.openingDate||t.date>=state.openingDate)).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
- const consumed=new Map(),paidByGoal=new Map();
+ const consumed=new Map(),credited=new Map();
+ const goalById=new Map((state.goals||[]).map(g=>[g.id,g]));
  for(const t of future){
    const goal=funding.get(t.plannedId),prior=consumed.get(t.plannedId)||0;
    const reserved=(t.accountId||'main')===goal.accountId?Math.min(t.amount,Math.max(0,goal.funded-prior)):0;
    consumed.set(t.plannedId,prior+reserved);
-   paidByGoal.set(t.plannedId,(paidByGoal.get(t.plannedId)||0)+t.amount);
    const charge=included.has(t.accountId||'main')?t.amount-reserved:0;
    if(charge){const item=byDate.get(t.date)||{income:0,expense:0};item.expense+=charge;byDate.set(t.date,item);}
- }
- for(const g of state.goals||[]){
-   const paid=paidByGoal.get(g.id)||0,goal=funding.get(g.id);
-   if(!paid||!goal||!goal.unfunded)continue;
-   const reduction=Math.min(goal.unfunded,Math.max(0,paid-(consumed.get(g.id)||0)));
-   const due=g.date<today?today:g.date;
-   if(due>end)continue;
-   const item=byDate.get(due)||{income:0,expense:0};
+   const used=credited.get(t.plannedId)||0;
+   const reduction=Math.min(Math.max(0,goal.unfunded-used),t.amount-reserved);
+   const deadline=goalById.get(t.plannedId).date;
+   const offsetDate=t.date>deadline?t.date:deadline;
+   if(reduction===0||offsetDate>end)continue;
+   credited.set(t.plannedId,used+reduction);
+   const item=byDate.get(offsetDate)||{income:0,expense:0};
    item.expense-=reduction;
-   byDate.set(due,item);
+   byDate.set(offsetDate,item);
  }
  let running=opening-earmarked,cap=Infinity,firstShortfall=null;
  for(let i=0;i<days;i++){const day=addDays(today,i),e=byDate.get(day)||{income:0,expense:0};running+=e.income-e.expense;if(running<0&&!firstShortfall)firstShortfall={date:day,amount:-running};cap=Math.min(cap,Math.floor(Math.max(0,running)/(i+1)));}
