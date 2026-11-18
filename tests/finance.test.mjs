@@ -374,3 +374,20 @@ test('legacy future goal payment is forecast on its date without double charging
  assert.equal(rows[0].available,800000);
  assert.equal(rows[1].available,400000);
 });
+
+test('future goal payment from earmarked savings does not double debit reserve',()=>{
+ const base={...blank(),opening:{available:300000,savings:600000},goals:[{id:'trip',title:'Trip',date:'2026-12-05',amount:600000,funded:500000,fundedAccountId:'savings'}]};
+ const future=record(base,{kind:'expense',accountId:'savings',amount:200000,date:'2026-11-25',plannedId:'trip',category:'Цель'});
+ const rows=financeForecast(future,'2026-11-18',3);
+ assert.equal(rows[0].savings,400000);
+ assert.equal(rows[1].savings,100000);
+ assert.equal(rows[1].available,200000);
+});
+test('future goal payment from other account reduces unfunded before earmark',()=>{
+ const base={...blank(),opening:{available:500000,savings:600000},goals:[{id:'trip',title:'Trip',date:'2026-12-05',amount:600000,funded:500000,fundedAccountId:'savings'}]};
+ const future=record(base,{kind:'expense',accountId:'main',amount:200000,date:'2026-11-25',plannedId:'trip',category:'Цель'});
+ const rows=financeForecast(future,'2026-11-18',3);
+ assert.equal(rows[0].available,300000);
+ assert.equal(rows[1].available,300000);
+ assert.equal(rows[1].savings,200000);
+});
