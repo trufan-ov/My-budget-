@@ -100,9 +100,15 @@ export function financeForecast(state,today,months=6,scenario='comfortable'){
  // Forecast them as future cash outflows rather than treating them as paid now.
  const futureGoalPayments=(state.transactions||[]).filter(t=>t.kind==='expense'&&t.plannedId&&(state.goals||[]).some(g=>g.id===t.plannedId)&&t.date>=start&&t.date<end&&!t.historical);
  const futureGoalById=new Map();
- for(const t of futureGoalPayments)futureGoalById.set(t.plannedId,(futureGoalById.get(t.plannedId)||0)+t.amount);
- const fundedGoals=goalFundingStatus(state,today).filter(g=>g.funded>0&&!(state.closedPlans||[]).includes(g.id));
+ const futureGoalFromReserve=new Map();
  const goalById=new Map((state.goals||[]).map(g=>[g.id,g]));
+ for(const t of futureGoalPayments){
+   futureGoalById.set(t.plannedId,(futureGoalById.get(t.plannedId)||0)+t.amount);
+   if((t.accountId||'main')===goalById.get(t.plannedId)?.fundedAccountId)
+     futureGoalFromReserve.set(t.plannedId,(futureGoalFromReserve.get(t.plannedId)||0)+t.amount);
+ }
+ const fundingById=new Map(goalFundingStatus(state,today).map(g=>[g.id,g]));
+ const fundedGoals=goalFundingStatus(state,today).filter(g=>g.funded>0&&!(state.closedPlans||[]).includes(g.id));
  for(const e of events){const month=e.date.slice(0,7),p=byMonth.get(month)||{income:0,expense:0,savings:0};p[e.kind==='income'?'income':'expense']+=e.remaining;if(e.type==='savings')p.savings+=e.remaining;byMonth.set(month,p);}
  // A future payment replaces part of the goal's projected deadline expense.
  for(const t of futureGoalPayments){
@@ -114,12 +120,14 @@ export function financeForecast(state,today,months=6,scenario='comfortable'){
  for(const g of state.goals||[]){
    const futurePaid=futureGoalById.get(g.id)||0;
    if(!futurePaid||(state.closedPlans||[]).includes(g.id))continue;
-   const funding=goalFundingStatus(state,today).find(x=>x.id===g.id);
+   const funding=fundingById.get(g.id);
+   const fromReserve=futureGoalFromReserve.get(g.id)||0;
+   const fromOther=futurePaid-fromReserve;
+   const reserveConsumed=Math.min(funding?.funded||0,fromReserve);
+   const unfundedConsumed=Math.min(funding?.unfunded||0,fromOther+Math.max(0,fromReserve-reserveConsumed));
    const due=(g.date<start?start:g.date).slice(0,7);
    const p=byMonth.get(due)||{income:0,expense:0,savings:0};
-   // The scheduled payment consumes the same obligation, not a second one.
-   const fromUnfunded=Math.min(futurePaid,funding?.unfunded||0);
-   p.expense-=fromUnfunded;
+   p.expense-=unfundedConsumed;
    byMonth.set(due,p);
  }
  let available=initial.available,savings=initial.savings;
@@ -147,8 +155,9 @@ export function financeForecast(state,today,months=6,scenario='comfortable'){
      const due=goal.date<start?start:goal.date;
      if(due.slice(0,7)!==month)continue;
      const futurePaid=futureGoalById.get(funded.id)||0;
-     const unfunded=goalFundingStatus(state,today).find(g=>g.id===funded.id)?.unfunded||0;
-     const remainingFunded=Math.max(0,funded.funded-Math.max(0,futurePaid-unfunded));
+     const fromReserve=futureGoalFromReserve.get(funded.id)||0;
+     const fromOther=futurePaid-fromReserve;
+     const remainingFunded=Math.max(0,funded.funded-Math.min(funded.funded,fromReserve)-Math.max(0,fromOther-funded.unfunded));
      if(funded.accountId==='savings')savings-=remainingFunded;
      else available-=remainingFunded;
    }
