@@ -284,3 +284,25 @@ test('forecast spends funded goal on main account without reserving it twice',()
  assert.equal(rows[1].available,400000);
  assert.equal(rows[1].total,400000);
 });
+
+test('partial goal payment from reserve account releases spent earmark',async()=>{
+ const {goalFundingStatus}=await import('../src/finance.mjs');
+ const base={...blank(),opening:{available:0,savings:1000000},goals:[{id:'trip',title:'Trip',date:'2026-12-05',amount:600000,funded:500000,fundedAccountId:'savings'}]};
+ const paid=record(base,{kind:'expense',accountId:'savings',amount:200000,date:'2026-11-18',plannedId:'trip',category:'Цель'});
+ const funding=goalFundingStatus(paid,'2026-11-18')[0];
+ assert.equal(funding.paid,200000);
+ assert.equal(funding.funded,300000);
+ assert.equal(funding.unfunded,100000);
+ assert.equal(pendingEvents(paid,'2026-11-18','2026-12-10').find(e=>e.id==='trip').remaining,100000);
+ const forecast=financeForecast(paid,'2026-11-18',3);
+ assert.equal(forecast[1].savings,500000);
+ assert.equal(forecast[1].available,-100000);
+});
+test('partial goal payment from another account keeps earmarked reserve intact',async()=>{
+ const {goalFundingStatus}=await import('../src/finance.mjs');
+ const base={...blank(),opening:{available:500000,savings:500000},goals:[{id:'trip',title:'Trip',date:'2026-12-05',amount:600000,funded:500000,fundedAccountId:'savings'}]};
+ const paid=record(base,{kind:'expense',accountId:'main',amount:100000,date:'2026-11-18',plannedId:'trip',category:'Цель'});
+ assert.equal(goalFundingStatus(paid,'2026-11-18')[0].funded,500000);
+ assert.equal(pendingEvents(paid,'2026-11-18','2026-12-10').some(e=>e.id==='trip'),false);
+ assert.equal(financeForecast(paid,'2026-11-18',3)[1].savings,0);
+});
