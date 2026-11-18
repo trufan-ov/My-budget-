@@ -68,3 +68,31 @@ test('personal draft never silently replaces real operations',()=>{
  const current={...demo('2026-11-18'),settings:{savingsApr:0,demo:false}};
  assert.throws(()=>applyPersonalDraft(current,{replaceDemo:true}),/уже есть данные/);
 });
+
+test('historical bank operations do not change opening balances but same-day new transactions do',async()=>{
+ const {balanceAt,record}=await import('../src/core.mjs');
+ const initial=applyPersonalDraft(blank());
+ const history={...initial,transactions:[{id:'old',kind:'expense',amount:100000,date:'2026-11-17',historical:true}]};
+ assert.equal(balanceAt(history,'2026-11-18').available,346200);
+ const actual=record(history,{kind:'expense',amount:20000,date:'2026-11-18'});
+ assert.equal(balanceAt(actual,'2026-11-18').available,326200);
+});
+test('multiple accounts and transfers conserve net worth',async()=>{
+ const {record,accountBalances,balanceAt}=await import('../src/core.mjs');
+ const state={...blank(),accounts:[{id:'cash',name:'Наличные',opening:50000,includeInDaily:true}]};
+ const moved=record(state,{kind:'transfer',fromAccount:'main',toAccount:'cash',amount:100000,date:'2026-11-18'});
+ assert.equal(accountBalances(moved).cash,150000);
+ assert.equal(balanceAt(moved).total,balanceAt(state).total);
+});
+test('excluded account does not inflate safe daily budget',async()=>{
+ const state={...applyPersonalDraft(blank()),accounts:[{id:'reserve',name:'Резерв',opening:5000000,includeInDaily:false}]};
+ assert.equal(dailyPlan(state,'2026-11-18','2026-11-22').maximumDaily,69240);
+});
+test('debts support principal and interest split',async()=>{
+ const {addDebt,payDebt,debtBalance,netWorth}=await import('../src/debts.mjs');
+ const state={...blank(),opening:{available:1000000,savings:0}};
+ const created=addDebt(state,{title:'Друг',type:'borrowed',principal:300000,apr:12});
+ const paid=payDebt(created,created.debts[0].id,{principal:100000,interest:10000,date:'2026-11-18'});
+ assert.equal(debtBalance(created.debts[0],paid.transactions).principal,200000);
+ assert.equal(netWorth(paid,{main:890000,savings:0}),690000);
+});
