@@ -74,3 +74,18 @@ test('undo rejects removal of an imported deposit already spent',async()=>{
  assert.throws(()=>safeImportUndo(state,batch),/2028-03-01/);
  assert.deepEqual(state.transactions,[deposit,expense]);
 });
+
+test('bank import parses accounting negatives and grouped ruble amounts exactly',()=>{
+ assert.equal(bankMoney('(1 234,56 ₽)'),-123456);
+ assert.equal(bankMoney('−0,01'),-1);
+ assert.equal(bankMoney('1,234,567.89 RUB'),123456789);
+ assert.equal(bankMoney('90071992547409,91'),Number.MAX_SAFE_INTEGER);
+ const rows=parseBankCSV('Дата;Сумма;Описание\n18.11.2026;(5,50);Покупка\n19.11.2026;5,50;Возврат');
+ assert.deepEqual(rows.map(x=>[x.kind,x.amount]),[['expense',550],['income',550]]);
+});
+
+test('foreign currency and malformed amounts do not turn into ruble transactions',()=>{
+ for(const value of ['15 USD','1И2','1 23,00','10,005','1.005','10,0050','90071992547409,92']){
+  assert.ok(Number.isNaN(bankMoney(value)),value);
+ }
+});

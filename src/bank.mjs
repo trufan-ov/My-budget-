@@ -18,13 +18,36 @@ export function csvRows(input,separator){
  row.push(field.trim());if(row.some(Boolean))rows.push(row);
  return rows;
 }
+const BANK_NUMBER_FORMATS=[
+ /^(\d+)(?:[.,](\d{1,2}))?$/,
+ /^(\d{1,3}(?:,\d{3})+)(?:\.(\d{1,2}))?$/,
+ /^(\d{1,3}(?:\.\d{3})+)(?:,(\d{1,2}))?$/,
+ /^(\d{1,3}(?:[ \u00a0\u202f]\d{3})+)(?:[.,](\d{1,2}))?$/,
+];
+const stripRubleSuffix=value=>value.replace(/\s*(?:₽|руб\.?|RUB)$/i,'').trim();
+
 export function bankMoney(value){
- let s=String(value??'').replace(/[\s\u00a0₽]/g,'').replace(/руб\.?/gi,'').replace(/[^0-9,.-]/g,'');
- if(s.includes(',')&&s.includes('.'))s=s.lastIndexOf(',')>s.lastIndexOf('.')?s.replace(/\./g,'').replace(',','.'):s.replace(/,/g,'');
- else s=s.replace(',','.');
- const n=Number(s);return Number.isFinite(n)?Math.round(n*100):NaN;
+ let raw=stripRubleSuffix(String(value??'').trim());
+ const accounting=raw.startsWith('(')&&raw.endsWith(')');
+ if(accounting)raw=stripRubleSuffix(raw.slice(1,-1).trim());
+
+ const sign=raw.match(/^[+\-−]/)?.[0];
+ if(accounting&&sign)return NaN;
+ if(sign)raw=raw.slice(1).trimStart();
+ const negative=accounting||sign==='-'||sign==='−';
+
+ for(const format of BANK_NUMBER_FORMATS){
+  const match=raw.match(format);
+  if(!match)continue;
+  const [,rubles,kopecks='']=match;
+  // A single separator followed by three digits is ambiguous in a statement.
+  if(!kopecks&&/^\d{1,3}[.,]\d{3}$/.test(rubles))continue;
+  const amount=Number(rubles.replace(/\D/g,'')+kopecks.padEnd(2,'0'));
+  return Number.isSafeInteger(amount)?(negative?-amount:amount):NaN;
+ }
+ return NaN;
 }
-export function parseBankCSV(text){
+export function parseBankStatement(text){
  const rows=csvRows(text);if(rows.length<2)throw Error('CSV не содержит операций');
  const headers=rows.shift().map(x=>x.toLowerCase().replace(/ё/g,'е'));
  const col=terms=>headers.findIndex(h=>terms.some(t=>h.includes(t)));
@@ -44,7 +67,11 @@ export function parseBankCSV(text){
   parsed.push({kind:cents>0?'income':'expense',date,amount:Math.abs(cents),category:'Банк · без категории',note:(noteCol>=0?cells[noteCol]:'')||'Банковская операция'});
  }
  if(!parsed.length)throw Error('Нет подходящих строк. Проверьте формат выписки');
- return parsed;
+ return {transactions:parsed,rejectedRows:rows.length-parsed.length};
+}
+
+export function parseBankCSV(text){
+ return parseBankStatement(text).transactions;
 }
 export function unmatchedStatementRows(preview,existing){
  const fingerprint=t=>[t.accountId||'main',t.date,t.kind,t.amount,(t.note||'').trim().toLowerCase()].join('|');
