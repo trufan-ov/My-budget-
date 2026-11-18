@@ -1,4 +1,6 @@
-import {uid,record} from './core.mjs';
+import {uid,record,addMonths,dateISO,parseDate} from './core.mjs';
+const validDate=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&dateISO(parseDate(value))===value;
+
 export function debtBalance(debt,transactions=[]){
  const settled=transactions.filter(t=>t.debtId===debt.id);
  const principalPaid=settled.reduce((n,t)=>n+(t.principal||0),0);
@@ -10,7 +12,8 @@ export function addDebt(state,{title,type,principal,apr=0,dueDate='',creditLimit
  if(!Number.isFinite(apr)||apr<0||apr>100)throw Error('Некорректная ставка');
  if(!Number.isSafeInteger(creditLimit)||creditLimit<0)throw Error('Некорректный кредитный лимит');
  if(type==='creditCard'&&creditLimit>0&&principal>creditLimit)throw Error('Долг превышает кредитный лимит');
- if(graceUntil&&(!/^\\d{4}-\\d{2}-\\d{2}$/.test(graceUntil)||!Number.isFinite(Date.parse(graceUntil+'T12:00:00Z'))))throw Error('Некорректная дата льготного периода');
+ if(dueDate&&!validDate(dueDate))throw Error('Некорректная дата погашения');
+ if(graceUntil&&!validDate(graceUntil))throw Error('Некорректная дата льготного периода');
  const debt={id:uid(),title:title.trim(),type,principal,apr,dueDate,creditLimit,graceUntil,createdAt:new Date().toISOString()};
  return {...state,debts:[...(state.debts||[]),debt]};
 }
@@ -50,20 +53,16 @@ export function netWorth(state,balances){
  */
 export function repaymentSchedule({principal,apr=0,months,startDate}){
  if(!Number.isSafeInteger(principal)||principal<=0||!Number.isInteger(months)||months<1||months>600||!Number.isFinite(apr)||apr<0||apr>100)throw Error('Некорректные параметры графика');
- if(!/^\d{4}-\d{2}-\d{2}$/.test(startDate)||!Number.isFinite(Date.parse(startDate+'T12:00:00Z')))throw Error('Некорректная дата графика');
+ if(!validDate(startDate))throw Error('Некорректная дата графика');
  const rate=apr/1200;
- const payment=rate?Math.ceil(principal*rate/(1-Math.pow(1+rate,-months))):Math.ceil(principal/months);
+ const payment=rate?Math.ceil(principal*(rate/-Math.expm1(-months*Math.log1p(rate)))):Math.ceil(principal/months);
  let outstanding=principal;const rows=[];
- for(let i=0;i<months;i++){
+ for(let i=0;i<months&&outstanding>0;i++){
   const interest=Math.round(outstanding*rate);
   const principalPart=i===months-1?outstanding:Math.min(outstanding,Math.max(0,payment-interest));
   if(principalPart===0)throw Error('Платёж не покрывает проценты');
   outstanding-=principalPart;
-  const d=new Date(startDate+'T12:00:00Z'),day=d.getUTCDate();
-  d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()+i);
-  const last=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)).getUTCDate();
-  d.setUTCDate(Math.min(day,last));
-  rows.push({date:d.toISOString().slice(0,10),principal:principalPart,interest,amount:principalPart+interest,remaining:outstanding});
+  rows.push({date:addMonths(startDate,i),principal:principalPart,interest,amount:principalPart+interest,remaining:outstanding});
  }
  return rows;
 }

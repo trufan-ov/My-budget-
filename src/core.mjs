@@ -14,22 +14,48 @@ export function accountList(state){
  const base=[{id:'main',name:'Основной счёт',opening:state.opening.available,includeInDaily:true},{id:'savings',name:'Копилка',opening:state.opening.savings,includeInDaily:false}];
  return [...base,...(state.accounts||[]).filter(a=>!['main','savings'].includes(a.id))];
 }
+function ledgerEntries(state,day='9999-12-31'){
+ return state.transactions.filter(t=>t.date<=day&&!t.historical&&(!state.openingDate||t.date>=state.openingDate))
+  .sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
+}
+function openingBalances(state){
+ return Object.assign(Object.create(null),Object.fromEntries(accountList(state).map(a=>[a.id,a.opening])));
+}
+function applyEntry(balances,tx){
+ validateTransaction(tx);
+ if(tx.kind==='transfer'){
+  const from=tx.fromAccount||(tx.direction==='fromSavings'?'savings':'main');
+  const to=tx.toAccount||(tx.direction==='fromSavings'?'main':'savings');
+  if(!(from in balances)||!(to in balances)||from===to)throw Error('Некорректные счета перевода');
+  balances[from]-=tx.amount;
+  balances[to]+=tx.amount;
+ }else{
+  const account=tx.accountId||(tx.kind==='interest'?'savings':'main');
+  if(!(account in balances))throw Error('Счёт операции не найден');
+  balances[account]+=tx.kind==='expense'?-tx.amount:tx.amount;
+ }
+}
 export function accountBalances(state,day='9999-12-31'){
- const balances=Object.fromEntries(accountList(state).map(a=>[a.id,a.opening]));
- for(const tx of state.transactions.filter(t=>t.date<=day&&!t.historical&&(!state.openingDate||t.date>=state.openingDate)).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id))){
-  validateTransaction(tx);
-  if(tx.kind==='transfer'){
-   const from=tx.fromAccount|| (tx.direction==='fromSavings'?'savings':'main');
-   const to=tx.toAccount|| (tx.direction==='fromSavings'?'main':'savings');
-   if(!(from in balances)||!(to in balances)||from===to)throw Error('Некорректные счета перевода');
-   balances[from]-=tx.amount;balances[to]+=tx.amount;
-  }else{
-   const id=tx.accountId||(tx.kind==='interest'?'savings':'main');
-   if(!(id in balances))throw Error('Счёт операции не найден');
-   balances[id]+=tx.kind==='expense'?-tx.amount:tx.amount;
+ const balances=openingBalances(state);
+ for(const tx of ledgerEntries(state,day))applyEntry(balances,tx);
+ return {...balances};
+}
+
+export function assertNoNewOverdraft(previous,next){
+ const oldEntries=ledgerEntries(previous),newEntries=ledgerEntries(next);
+ const oldBalances=openingBalances(previous),newBalances=openingBalances(next);
+ const days=[...new Set([...oldEntries,...newEntries].map(t=>t.date))].sort();
+ const accounts=accountList(next);
+ let oldIndex=0,newIndex=0;
+ for(const day of days){
+  while(oldEntries[oldIndex]?.date===day)applyEntry(oldBalances,oldEntries[oldIndex++]);
+  while(newEntries[newIndex]?.date===day)applyEntry(newBalances,newEntries[newIndex++]);
+  for(const {id,name} of accounts){
+   if(newBalances[id]<Math.min(0,oldBalances[id]??0)){
+    throw Error('Недостаточно средств на счёте «'+name+'» на '+day);
+   }
   }
  }
- return balances;
 }
 export function balanceAt(state,day='9999-12-31'){
  const accounts=accountBalances(state,day);
@@ -42,23 +68,51 @@ export function record(state,transaction,options={}){
  validateTransaction(tx);
  if(state.transactions.some(t=>t.id===tx.id))throw Error('Дублирующийся идентификатор операции');
  if(state.openingDate&&tx.date<state.openingDate&&!tx.historical)throw Error('Операция раньше даты начальных остатков: импортируй её как историческую');
- const before=accountBalances(state,tx.date);
- const from=tx.fromAccount||(tx.direction==='fromSavings'?'savings':'main');
- const account=tx.accountId||(tx.kind==='interest'?'savings':'main');
- if(!options.allowNegative&&!tx.historical){
-  if(tx.kind==='expense'&&(before[account]??-1)<tx.amount)throw Error('Недостаточно средств на выбранном счёте');
-  if(tx.kind==='transfer'&&(before[from]??-1)<tx.amount)throw Error('Недостаточно средств для перевода');
- }
  const next={...state,transactions:[...state.transactions,tx]};
- accountBalances(next,tx.date);
+ if(options.allowNegative||tx.historical)accountBalances(next,tx.date);
+ else assertNoNewOverdraft(state,next);
  return next;
 }
 export function extraIncome(state,{amount,toSavings=0,date=dateISO(),note='Дополнительный доход'}){if(!Number.isSafeInteger(toSavings)||toSavings<0||toSavings>amount)throw Error('В копилку нельзя направить больше дохода');let next=record(state,{kind:'income',amount,date,category:'Доп. доход',note});if(toSavings)next=record(next,{kind:'transfer',direction:'toSavings',amount:toSavings,date,category:'Копилка',note:'Из дополнительного дохода',groupId:next.transactions.at(-1).id});return next;}
-export function deleteTransaction(state,id){const found=state.transactions.find(t=>t.id===id);if(!found)return state;const ids=new Set([id]);if(found.kind==='income')for(const tx of state.transactions)if(tx.groupId===id)ids.add(tx.id);if(found.groupId)ids.add(found.groupId);const next={...state,transactions:state.transactions.filter(t=>!ids.has(t.id))};return next;}
-export function futureOccurrences(state,start,end,includeCompleted=false){const out=[];for(const rule of state.rules){if(rule.enabled===false)continue;const s=parseDate(start), e=parseDate(end);for(let year=s.getFullYear()-1;year<=e.getFullYear()+1;year++)for(let month=1;month<=12;month++){
+export function deleteTransaction(state,id){const found=state.transactions.find(t=>t.id===id);if(!found)return state;const ids=new Set([id]);if(found.kind==='income')for(const tx of state.transactions)if(tx.groupId===id)ids.add(tx.id);if(found.groupId)ids.add(found.groupId);const next={...state,transactions:state.transactions.filter(t=>!ids.has(t.id))};assertNoNewOverdraft(state,next);return next;}
+export function recurringEditMonth(state,id,today){
+ const prefix=id+':';
+ let month=addMonths(today,1).slice(0,7);
+ for(const {plannedId} of state.transactions){
+  if(!plannedId?.startsWith(prefix))continue;
+  const booked=plannedId.slice(prefix.length);
+  if(/^\d{4}-(0[1-9]|1[0-2])$/.test(booked)&&booked>=month){
+   month=addMonths(booked+'-01',1).slice(0,7);
+  }
+ }
+ return month;
+}
+
+export function recurringRuleAt(rule,month){
+ const revision=rule.revisions?.findLast(change=>change.month<=month);
+ if(!revision)return rule;
+ const {title,day,amount}=revision;
+ return {...rule,title,day,amount};
+}
+
+export function reviseRecurringRule(state,id,{title,day,amount},today){
+ const rule=state.rules.find(rule=>rule.id===id&&['expense','income','savings'].includes(rule.type));
+ if(!rule||rule.enabled===false)throw Error('Регулярное правило недоступно');
+ if(!title?.trim()||!Number.isInteger(day)||day<1||day>28||!Number.isSafeInteger(amount)||amount<=0){
+  throw Error('Проверьте название, сумму и день регулярного платежа');
+ }
+ const month=recurringEditMonth(state,id,today);
+ if(rule.end&&rule.end<month+'-'+String(day).padStart(2,'0'))throw Error('Правило завершится до даты изменения');
+ const revision={month,title:title.trim(),day,amount};
+ const revisions=[...(rule.revisions||[]).filter(change=>change.month<month),revision];
+ return {...state,rules:state.rules.map(item=>item===rule?{...item,revisions}:item)};
+}
+export function futureOccurrences(state,start,end,includeCompleted=false){const out=[];for(const baseRule of state.rules){if(baseRule.enabled===false)continue;const s=parseDate(start), e=parseDate(end);for(let year=s.getFullYear()-1;year<=e.getFullYear()+1;year++)for(let month=1;month<=12;month++){
+const period=year+'-'+String(month).padStart(2,'0');
+const rule=recurringRuleAt(baseRule,period);
 let occurrence=rule.type==='salary'?salaryDate(year,month,rule.day,rule.moveWeekends!==false):dateISO(new Date(year,month-1,Math.min(rule.day,new Date(year,month,0).getDate()),12));
 if(occurrence<start||occurrence>end||(rule.start&&occurrence<rule.start)||(rule.end&&occurrence>rule.end))continue;
-const id=`${rule.id}:${year}-${String(month).padStart(2,'0')}`;
+const id=rule.id+':'+period;
 out.push({id,ruleId:rule.id,date:occurrence,kind:['salary','income'].includes(rule.type)?'income':'expense',amount:rule.amount,title:rule.title,category:rule.category||'Обязательное',type:rule.type});}}
 for(const item of state.oneOffs){if(item.date>=start&&item.date<=end)out.push({...item,kind:item.kind||'expense',type:'oneOff'});}
 return out.filter(o=>includeCompleted||!state.transactions.some(t=>t.plannedId===o.id)).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));}
@@ -80,6 +134,12 @@ export function validateState(s){
  const unique=items=>new Set(items.map(x=>x.id)).size===items.length;
  if(!s||!s.opening||!cents(s.opening.available)||!cents(s.opening.savings)||!Array.isArray(s.transactions)||!Array.isArray(s.rules)||!Array.isArray(s.oneOffs))throw Error('Неверная структура данных');
  if(s.openingDate&&!validDate(s.openingDate))throw Error('Некорректная дата начального остатка');
+ for(const rule of s.rules){
+  if(rule?.revisions===undefined)continue;
+  if(!Array.isArray(rule.revisions)||rule.revisions.some((r,i)=>!r||typeof r.month!=='string'||!validDate(r.month+'-01')||
+   (i>0&&rule.revisions[i-1].month>=r.month)||typeof r.title!=='string'||!r.title.trim()||
+   !positive(r.amount)||!Number.isInteger(r.day)||r.day<1||r.day>28))throw Error('Некорректные изменения регулярного правила');
+ }
  for(const t of s.transactions)validateTransaction(t);
  if(!unique(s.transactions)||s.transactions.some(t=>typeof t.id!=='string'||!t.id))throw Error('Повторяющиеся или пустые идентификаторы операций');
  if(s.accounts!==undefined){

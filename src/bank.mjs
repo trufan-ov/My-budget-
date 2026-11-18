@@ -1,3 +1,5 @@
+import {assertNoNewOverdraft} from './core.mjs';
+
 // Bank statement parser. No network access or third-party dependencies.
 export function csvRows(input,separator){
  const text=String(input).replace(/^\uFEFF/,'');
@@ -67,5 +69,7 @@ export function safeImportUndo(state,batch){
  const original=new Set(batch.snapshots);
  if(current.some(t=>!original.has(bankImportSnapshot(t))))throw Error('Импортированные операции были изменены. Отмена всей партии заблокирована');
  if(state.transactions.some(t=>t.groupId&&ids.has(t.groupId)))throw Error('Есть связанные операции. Сначала проверьте их вручную');
- return {...state,transactions:state.transactions.filter(t=>!ids.has(t.id)),importBatches:(state.importBatches||[]).filter(b=>b.id!==batch.id)};
+ const next={...state,transactions:state.transactions.filter(t=>!ids.has(t.id)),importBatches:(state.importBatches||[]).filter(b=>b.id!==batch.id)};
+ assertNoNewOverdraft(state,next);
+ return next;
 }

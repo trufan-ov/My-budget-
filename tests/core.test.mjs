@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {demo,money,record,extraIncome,deleteTransaction,balanceAt,budgetSummary,salaryDate,forecast,futureOccurrences,validateState} from '../src/core.mjs';
+import {demo,money,record,assertNoNewOverdraft,extraIncome,deleteTransaction,balanceAt,budgetSummary,salaryDate,forecast,futureOccurrences,reviseRecurringRule,validateState} from '../src/core.mjs';
 const blank=()=>({...demo('2026-11-18'),opening:{available:2000000,savings:1000000},transactions:[],rules:[],oneOffs:[],settings:{savingsApr:0}});
 test('amounts in kopecks and input validation',()=>{assert.equal(money('12 000,45'),1200045);assert.throws(()=>money('10.001'));assert.throws(()=>money('-2'));});
 test('income distributed to savings conserves total',()=>{const s=blank(),next=extraIncome(s,{amount:1200000,toSavings:1000000,date:'2026-11-18'}),a=balanceAt(s),b=balanceAt(next);assert.equal(b.available-a.available,200000);assert.equal(b.savings-a.savings,1000000);assert.equal(b.total-a.total,1200000);});
@@ -13,3 +13,57 @@ test('planned payment reserve excluded from daily spend',()=>{const s=blank();s.
 test('payment marked as completed only once',()=>{const s=blank();s.oneOffs=[{id:'bill',date:'2026-11-20',title:'Счёт',amount:100000,kind:'expense'}];const t=record(s,{kind:'expense',date:'2026-11-18',amount:100000,plannedId:'bill'});assert.equal(futureOccurrences(t,'2026-11-18','2026-11-30').length,0);});
 test('forecast contains projected future salary but no actual posting',()=>{const s=blank();s.rules=[{id:'salary',type:'salary',day:23,title:'Зарплата',amount:3300000}];const rows=forecast(s,'2026-11-18',2);assert.ok(rows[0].available>balanceAt(s).available);assert.equal(s.transactions.length,0);});
 test('validates demo data and rejects duplicate ids',()=>{const s=demo('2026-11-18');assert.equal(validateState(s),true);s.transactions.push({...s.transactions[0]});assert.throws(()=>validateState(s));});
+
+test('backdated expense or transfer cannot make a later balance negative',()=>{
+ const base={...blank(),opening:{available:10000,savings:0}};
+ const spent=record(base,{kind:'expense',amount:9000,date:'2028-01-01'});
+ for(const movement of [{kind:'expense'},{kind:'transfer',direction:'toSavings'}]){
+  assert.throws(()=>record(spent,{...movement,amount:1001,date:'2027-12-31'}),/2028-01-01/);
+  const exactlyEnough=record(spent,{...movement,amount:1000,date:'2027-12-31'});
+  assert.equal(balanceAt(exactlyEnough).available,0);
+ }
+});
+
+test('removing or moving a transfer cannot strand a later payment on its destination',()=>{
+ const base={...blank(),accounts:[{id:'cash',name:'Cash',opening:0}]};
+ const tx={id:'cash-in',kind:'transfer',fromAccount:'main',toAccount:'cash',amount:100,date:'2028-02-28'};
+ const transferred=record(base,tx);
+ const spent=record(transferred,{kind:'expense',accountId:'cash',amount:100,date:'2028-02-29'});
+ assert.throws(()=>deleteTransaction(spent,tx.id),/Cash.*2028-02-29/);
+ const edited={...spent,transactions:[spent.transactions.at(-1),{...tx,date:'2028-03-01'}]};
+ assert.throws(()=>assertNoNewOverdraft(spent,edited),/Cash.*2028-02-29/);
+});
+
+test('existing statement overdrafts remain valid and can improve',()=>{
+ const base={...blank(),opening:{available:0,savings:10000},openingDate:'2028-01-01'};
+ const imported=record(base,{kind:'expense',amount:100,date:'2028-01-02'},{allowNegative:true});
+ assert.equal(balanceAt(record(imported,{kind:'income',amount:50,date:'2028-01-01'})).available,-50);
+ assert.throws(()=>record(imported,{kind:'expense',amount:1,date:'2028-01-02'}),/Недостаточно/);
+ const historical=record(imported,{kind:'expense',amount:50,date:'2027-12-31',historical:true});
+ assert.deepEqual(balanceAt(historical),balanceAt(imported));
+});
+
+test('regular rule changes preserve posted and partial months and update the future',()=>{
+ const rule={id:'rent',type:'expense',title:'Rent',day:15,amount:1000,start:'2027-12-01'};
+ const prior={id:'partial',plannedId:'rent:2028-01',kind:'expense',date:'2027-12-30',amount:200};
+ const state={...blank(),rules:[rule],transactions:[prior]};
+ const updated=reviseRecurringRule(state,'rent',{title:'New rent',day:8,amount:1200},'2027-12-31');
+ validateState(updated);
+ assert.deepEqual(updated.transactions,[prior]);
+ assert.deepEqual(futureOccurrences(updated,'2027-12-01','2028-03-31',true).map(x=>[x.id,x.date,x.amount]),[
+  ['rent:2027-12','2027-12-15',1000],['rent:2028-01','2028-01-15',1000],
+  ['rent:2028-02','2028-02-08',1200],['rent:2028-03','2028-03-08',1200],
+ ]);
+ const revisedAgain=reviseRecurringRule(updated,'rent',{title:'Rent v3',day:9,amount:1250},'2027-12-31');
+ assert.equal(revisedAgain.rules[0].revisions.length,1);
+ assert.equal(futureOccurrences(revisedAgain,'2028-02-01','2028-02-29')[0].amount,1250);
+});
+
+test('regular rule edit is reflected in both obligation and forecast',async()=>{
+ const {pendingEvents,financeForecast}=await import('../src/finance.mjs');
+ const state={...blank(),rules:[{id:'rent',type:'expense',title:'Rent',day:10,amount:1000}]};
+ const next=reviseRecurringRule(state,'rent',{title:'Rent',day:10,amount:1200},'2027-12-31');
+ assert.equal(pendingEvents(next,'2028-01-01','2028-01-31')[0].remaining,1200);
+ const january=budget=>financeForecast(budget,'2027-12-31',3).find(row=>row.month==='2028-01').available;
+ assert.equal(january(state)-january(next),200);
+});

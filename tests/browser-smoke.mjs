@@ -1,12 +1,13 @@
 import {chromium,webkit} from 'playwright';
 import assert from 'node:assert/strict';
 const browser=await (process.env.BROWSER==='webkit'?webkit:chromium).launch({headless:true});
-const page=await browser.newPage({viewport:{width:390,height:844}});
+const context=await browser.newContext({viewport:{width:390,height:844}});
+const page=await context.newPage();
 const errors=[];
 page.on('pageerror',e=>errors.push(e.message));
 page.on('dialog',async dialog=>dialog.accept());
 try{
- await page.goto('http://127.0.0.1:4173/',{waitUntil:'networkidle'});
+ await page.goto('http://localhost:4173/',{waitUntil:'networkidle'});
  assert.equal(await page.locator('.mobile-nav button').count(),4);
  await page.locator('.mobile-nav [data-nav="more"]').click();
  assert.equal(await page.locator('.more-link').count(),4);
@@ -58,6 +59,64 @@ try{
  await page.getByText('statement.csv',{exact:true}).first().waitFor();
  await page.locator('[data-import-undo]').click();
  await page.getByText('Импортов пока нет',{exact:true}).first().waitFor();
+ const stalePage=await page.context().newPage();
+ await stalePage.goto(page.url());
+ const openAccounts=async tab=>{
+  await tab.locator('.mobile-nav [data-nav="more"]').click();
+  await tab.locator('.more-link[data-nav="accounts"]').click();
+ };
+ const createAccount=async (tab,name)=>{
+  await tab.locator('[data-modal="account"]').click();
+  await tab.locator('[name="title"]').fill(name);
+  await tab.locator('form[data-form="account"] button[type="submit"]').click();
+ };
+ await openAccounts(stalePage);
+ await openAccounts(page);
+ await createAccount(page,'Сохранённый счёт');
+ await page.getByText('Сохранённый счёт',{exact:true}).waitFor();
+ await createAccount(stalePage,'Устаревшая вкладка');
+ await stalePage.getByText(/Бюджет уже изменился/).waitFor();
+ assert.equal(await stalePage.locator('[name="title"]').inputValue(),'Устаревшая вкладка');
+ await stalePage.reload();
+ await openAccounts(stalePage);
+ await stalePage.getByText('Сохранённый счёт',{exact:true}).waitFor();
+ assert.equal(await stalePage.getByText('Устаревшая вкладка',{exact:true}).count(),0);
+ await stalePage.close();
+ const afterRestore=await page.evaluate(async()=>{
+  const {load,readBackup,save}=await import('/src/storage.mjs');
+  const stored=await load();
+  const backup=await readBackup(new Blob([JSON.stringify(stored)]));
+  await save(backup,stored);
+  let aborted=false;
+  try{await save({...backup,uncloneable:()=>{}},backup);}catch(error){aborted=error.name==='DataCloneError';}
+  if(!aborted)throw new Error('Expected a failed IndexedDB write');
+  return {stored,restored:await load()};
+ });
+ assert.deepEqual(afterRestore.restored,afterRestore.stored);
+ await page.reload();
+ await page.locator('.mobile-nav [data-nav="plan"]').click();
+ await page.locator('[data-modal="rule"]').click();
+ await page.locator('[name="title"]').fill('Тестовое правило');
+ await page.locator('[name="amount"]').fill('200');
+ await page.locator('form[data-form="rule"] button[type="submit"]').click();
+ await page.locator('[data-rule-edit]').click();
+ await page.locator('[name="amount"]').fill('250');
+ await page.locator('form[data-form^="ruleedit:"] button[type="submit"]').click();
+ await page.getByText(/изменение с /).waitFor();
+ const revision=await page.evaluate(async()=>{
+  const {load}=await import('/src/storage.mjs');
+  return (await load()).rules.find(x=>x.title==='Тестовое правило').revisions[0];
+ });
+ assert.equal(revision.amount,25000);
+ await page.waitForFunction(()=>Boolean(navigator.serviceWorker.controller));
+ assert.equal(await page.evaluate(async()=>Boolean(await caches.match('/index.html'))),true);
+ if(process.env.BROWSER!=='webkit'){
+  await context.setOffline(true);
+  await page.reload({waitUntil:'domcontentloaded'});
+  await page.locator('.mobile-nav').waitFor();
+  await context.setOffline(false);
+ }
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
  assert.deepEqual(errors,[]);
- console.log('PASS: iPhone-size personal draft click, goals, 10 installments, subscriptions, persistence, no JS errors');
+ console.log('PASS: iPhone-size personal draft click, goals, 10 installments, subscriptions, persistence, concurrent edits, backup round-trip, write rollback, service worker cache, no JS errors');
 }finally{await browser.close();}
