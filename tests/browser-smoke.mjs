@@ -40,6 +40,7 @@ try{
  await page.locator('.more-link[data-nav="settings"]').click();
  await page.locator('#bank-csv').setInputFiles({name:'statement.csv',mimeType:'text/csv',buffer:Buffer.from('Дата;Сумма;Описание\n19.11.2026;-50;Тестовая покупка\n')});
  await page.getByText('Тестовая покупка',{exact:true}).first().waitFor();
+ assert.equal(await page.locator('[data-bank-page]').count(),2);
  await page.locator('[data-import-confirm]').click();
  await page.getByText('statement.csv',{exact:true}).first().waitFor();
  await page.locator('[data-import-undo]').click();
