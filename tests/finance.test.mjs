@@ -313,3 +313,16 @@ test('fully paid goal is not an outstanding event or future forecast expense',()
  assert.equal(pendingEvents(paid,'2026-11-18','2026-12-31').some(e=>e.id==='trip'),false);
  assert.equal(financeForecast(paid,'2026-11-18',3)[1].savings,0);
 });
+
+test('closing a funded goal releases its earmark and removes future expense',async()=>{
+ const {goalFundingStatus}=await import('../src/finance.mjs');
+ const base={...blank(),opening:{available:1000000,savings:0},goals:[{id:'trip',title:'Trip',date:'2026-12-05',amount:600000,funded:600000,fundedAccountId:'main'}]};
+ const before=dailyPlan(base,'2026-11-18','2026-11-20');
+ const closed={...base,closedPlans:['trip']};
+ assert.equal(goalFundingStatus(closed,'2026-11-18')[0].funded,0);
+ assert.equal(pendingEvents(closed,'2026-11-18','2026-12-10').some(e=>e.id==='trip'),false);
+ assert.ok(dailyPlan(closed,'2026-11-18','2026-11-20').maximumDaily>before.maximumDaily);
+ assert.equal(financeForecast(closed,'2026-11-18',3)[1].available,1000000);
+ const reopened={...closed,closedPlans:[]};
+ assert.equal(goalFundingStatus(reopened,'2026-11-18')[0].funded,600000);
+});
