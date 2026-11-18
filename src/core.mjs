@@ -90,7 +90,7 @@ export function validateState(s){
   const debtIds=new Set(s.debts.map(d=>d.id));
   if(s.transactions.some(t=>t.debtId&&!debtIds.has(t.debtId)))throw Error('Операция ссылается на отсутствующий долг');
  }
- if(s.goals!==undefined&&(!Array.isArray(s.goals)||!unique(s.goals)||s.goals.some(g=>!g||!g.id||!validDate(g.date)||!positive(g.amount)||(g.funded!==undefined&&(!cents(g.funded)||g.funded>g.amount)))))throw Error('Некорректные цели');
+ if(s.goals!==undefined&&(!Array.isArray(s.goals)||!unique(s.goals)||s.goals.some(g=>!g||!g.id||!validDate(g.date)||!positive(g.amount)||(g.funded!==undefined&&(!cents(g.funded)||g.funded>g.amount))||(g.fundedAccountId&& !accountList(s).some(a=>a.id===g.fundedAccountId)))))throw Error('Некорректные цели');
  if(s.installments!==undefined&&(!Array.isArray(s.installments)||!unique(s.installments)||s.installments.some(i=>!i||!i.id||!Array.isArray(i.payments)||!unique(i.payments)||i.payments.some(p=>!p.id||!validDate(p.date)||!positive(p.amount)))))throw Error('Некорректные рассрочки');
  if(s.importBatches!==undefined&&(!Array.isArray(s.importBatches)||!unique(s.importBatches)||s.importBatches.some(b=>!b||!b.id||!Array.isArray(b.ids)||b.ids.some(id=>typeof id!=='string'))))throw Error('Некорректная история импорта');
  if(!s.settings||!Number.isFinite(Number(s.settings.savingsApr))||Number(s.settings.savingsApr)<0||Number(s.settings.savingsApr)>100)throw Error('Некорректная ставка');
