@@ -268,3 +268,19 @@ test('moving reserved savings into a spendable account does not create extra bud
  assert.equal(after.maximumDaily,Math.floor(500000/3));
  assert.equal(after.pending.find(e=>e.id==='trip').remaining,500000);
 });
+
+test('forecast spends funded goal from savings at deadline, not twice from cash',()=>{
+ const base={...blank(),opening:{available:1000000,savings:500000},goals:[{id:'trip',title:'Trip',date:'2026-12-05',amount:500000,funded:500000,fundedAccountId:'savings'}]};
+ const rows=financeForecast(base,'2026-11-18',3);
+ assert.equal(rows[0].available,1000000);
+ assert.equal(rows[0].savings,500000);
+ assert.equal(rows[1].available,1000000);
+ assert.equal(rows[1].savings,0);
+ assert.equal(rows[1].total,1000000);
+});
+test('forecast spends funded goal on main account without reserving it twice',()=>{
+ const base={...blank(),opening:{available:1000000,savings:0},goals:[{id:'trip',title:'Trip',date:'2026-12-05',amount:600000,funded:400000,fundedAccountId:'main'}]};
+ const rows=financeForecast(base,'2026-11-18',3);
+ assert.equal(rows[1].available,400000);
+ assert.equal(rows[1].total,400000);
+});
