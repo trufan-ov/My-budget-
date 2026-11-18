@@ -73,7 +73,30 @@ const start=month===0?addDays(today,1):dateISO(new Date(parseDate(today).getFull
 const apr=Number(state.settings?.savingsApr||0);const interest=Math.max(0,Math.round(Math.max(projected.savings,0)*apr/1200));projected.savings+=interest;
 sorted.push({month:start.slice(0,7),available:projected.available,savings:projected.savings,total:projected.available+projected.savings,interest,events:grouped.length});}
 return sorted;}
-export function validateState(s){if(!s||!s.opening||!Number.isSafeInteger(s.opening.available)||!Number.isSafeInteger(s.opening.savings)||!Array.isArray(s.transactions)||!Array.isArray(s.rules)||!Array.isArray(s.oneOffs))throw Error('Неверная структура данных');if(s.opening.available<0||s.opening.savings<0)throw Error('Отрицательный стартовый баланс');for(const t of s.transactions)validateTransaction(t);if(new Set(s.transactions.map(t=>t.id)).size!==s.transactions.length)throw Error('Повторяющиеся операции');if(s.accounts){if(!Array.isArray(s.accounts)||new Set(s.accounts.map(a=>a.id)).size!==s.accounts.length||s.accounts.some(a=>!a.id||['main','savings'].includes(a.id)||!Number.isSafeInteger(a.opening)||a.opening<0))throw Error('Некорректные счета');accountBalances(s); }if(!s.settings||!Number.isFinite(Number(s.settings.savingsApr))||Number(s.settings.savingsApr)<0||Number(s.settings.savingsApr)>100)throw Error('Некорректная ставка');return true;}
+export function validateState(s){
+ const validDate=d=>typeof d==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(d)&&dateISO(parseDate(d))===d;
+ const cents=n=>Number.isSafeInteger(n)&&n>=0;
+ const positive=n=>Number.isSafeInteger(n)&&n>0;
+ const unique=items=>new Set(items.map(x=>x.id)).size===items.length;
+ if(!s||!s.opening||!cents(s.opening.available)||!cents(s.opening.savings)||!Array.isArray(s.transactions)||!Array.isArray(s.rules)||!Array.isArray(s.oneOffs))throw Error('Неверная структура данных');
+ if(s.openingDate&&!validDate(s.openingDate))throw Error('Некорректная дата начального остатка');
+ for(const t of s.transactions)validateTransaction(t);
+ if(!unique(s.transactions)||s.transactions.some(t=>typeof t.id!=='string'||!t.id))throw Error('Повторяющиеся или пустые идентификаторы операций');
+ if(s.accounts!==undefined){
+  if(!Array.isArray(s.accounts)||!unique(s.accounts)||s.accounts.some(a=>!a||typeof a.id!=='string'||!a.id||['main','savings'].includes(a.id)||!cents(a.opening)||typeof a.name!=='string'||!a.name.trim()))throw Error('Некорректные счета');
+ }
+ if(s.debts!==undefined){
+  if(!Array.isArray(s.debts)||!unique(s.debts)||s.debts.some(d=>!d||typeof d.id!=='string'||!d.id||!['borrowed','lent','creditCard'].includes(d.type)||!positive(d.principal)||!Number.isFinite(d.apr??0)||(d.apr??0)<0||(d.apr??0)>100||(d.creditLimit!==undefined&&!cents(d.creditLimit))||(d.dueDate&&!validDate(d.dueDate))||(d.graceUntil&&!validDate(d.graceUntil))||(d.schedule!==undefined&&(!Array.isArray(d.schedule)||d.schedule.some(p=>!validDate(p.date)||!positive(p.amount)||!cents(p.principal)||!cents(p.interest)||p.principal+p.interest!==p.amount)))))throw Error('Некорректные кредиты и графики');
+  const debtIds=new Set(s.debts.map(d=>d.id));
+  if(s.transactions.some(t=>t.debtId&&!debtIds.has(t.debtId)))throw Error('Операция ссылается на отсутствующий долг');
+ }
+ if(s.goals!==undefined&&(!Array.isArray(s.goals)||!unique(s.goals)||s.goals.some(g=>!g||!g.id||!validDate(g.date)||!positive(g.amount))))throw Error('Некорректные цели');
+ if(s.installments!==undefined&&(!Array.isArray(s.installments)||!unique(s.installments)||s.installments.some(i=>!i||!i.id||!Array.isArray(i.payments)||!unique(i.payments)||i.payments.some(p=>!p.id||!validDate(p.date)||!positive(p.amount)))))throw Error('Некорректные рассрочки');
+ if(s.importBatches!==undefined&&(!Array.isArray(s.importBatches)||!unique(s.importBatches)||s.importBatches.some(b=>!b||!b.id||!Array.isArray(b.ids)||b.ids.some(id=>typeof id!=='string'))))throw Error('Некорректная история импорта');
+ if(!s.settings||!Number.isFinite(Number(s.settings.savingsApr))||Number(s.settings.savingsApr)<0||Number(s.settings.savingsApr)>100)throw Error('Некорректная ставка');
+ accountBalances(s);
+ return true;
+}
 export function demo(today=dateISO()){const [y,m]=today.split('-').map(Number);const openingDay=dateISO(new Date(y,m-1,1,12));const day=+today.slice(-2);const transactions=[{id:'demo-income',date:openingDay,kind:'income',amount:1200000,category:'Доп. доход',note:'Демонстрационное поступление'},{id:'demo-expense',date:dateISO(new Date(y,m-1,Math.min(3,day),12)),kind:'expense',amount:145000,category:'Продукты',note:'Пример покупки'},{id:'demo-transfer',date:dateISO(new Date(y,m-1,Math.min(4,day),12)),kind:'transfer',direction:'toSavings',amount:500000,category:'Копилка',note:'Пример пополнения'}];return {schemaVersion:1,createdAt:new Date().toISOString(),opening:{available:3500000,savings:1000000},transactions,rules:[{id:'salary-7',type:'salary',title:'Зарплата · 7 число',day:7,amount:3300000,moveWeekends:true,category:'Зарплата'},{id:'salary-23',type:'salary',title:'Зарплата · 23 число',day:23,amount:3300000,moveWeekends:true,category:'Зарплата'},{id:'internet',type:'expense',title:'Интернет',day:12,amount:130000,category:'Связь'},{id:'subscription',type:'expense',title:'Подписки',day:20,amount:200000,category:'Подписки'}],oneOffs:[],settings:{savingsApr:0,demo:true}};}
 
 /* Salary-period planning. Monetary values are integer kopecks. */
