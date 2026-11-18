@@ -76,11 +76,15 @@ export function financeForecast(state,today,months=6,scenario='comfortable'){
  const events=pendingEvents(state,start,end),byMonth=new Map();
  for(const e of events){const month=e.date.slice(0,7),p=byMonth.get(month)||{income:0,expense:0,savings:0};p[e.kind==='income'?'income':'expense']+=e.remaining;if(e.type==='savings')p.savings+=e.remaining;byMonth.set(month,p);}
  let available=initial.available,savings=initial.savings;
- const target=state.settings?.planning?.dailyTarget??0;
+ const target=Number(state.settings?.planning?.dailyTarget??0);
+ if(!Number.isSafeInteger(target)||target<0)throw Error('Некорректный дневной бюджет. Проверьте настройки финансового плана');
  const recent=(state.transactions||[]).filter(t=>t.kind==='expense'&&!t.plannedId&&!t.debtId&&!t.historical&&t.category!=='Долги'&&t.category!=='Рассрочка'&&t.date>=addDays(today,-30)&&t.date<=today);
  const observed=recent.length?Math.round(recent.reduce((a,t)=>a+t.amount,0)/30):null;
  if(scenario==='actual'&&observed===null)throw Error('Недостаточно фактических расходов за последние 30 дней для прогноза по истории');
- const daily=scenario==='economical'?Math.round(target*(1-(state.settings?.planning?.economyPercent??20)/100)):scenario==='actual'?observed:target;
+ const economy=Number(state.settings?.planning?.economyPercent??20);
+ if(!Number.isFinite(economy)||economy<0||economy>100)throw Error('Некорректный процент экономии в настройках');
+ const daily=scenario==='economical'?Math.round(target*(1-economy/100)):scenario==='actual'?observed:target;
+ if(!Number.isSafeInteger(daily)||daily<0)throw Error('Не удалось рассчитать дневные расходы для прогноза');
  const rows=[];
  for(let i=0;i<months;i++){
    const month=monthStart(i),next=monthStart(i+1);
@@ -91,6 +95,7 @@ export function financeForecast(state,today,months=6,scenario='comfortable'){
    savings+=p.savings;
    const interest=Math.max(0,Math.round(Math.max(0,savings)*Number(state.settings?.savingsApr||0)/1200));
    savings+=interest;
+   if(!Number.isSafeInteger(available)||!Number.isSafeInteger(savings)||!Number.isSafeInteger(interest))throw Error('Прогноз содержит некорректные суммы. Проверьте операции, счета и параметры бюджета');
    rows.push({month,available,savings,total:available+savings,interest,events:events.filter(e=>e.date.slice(0,7)===month).length,daily});
  }
  return rows;
