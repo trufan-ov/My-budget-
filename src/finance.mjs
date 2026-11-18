@@ -13,6 +13,7 @@ export function installmentEvents(state,start,end){
  return (state.installments||[]).flatMap(loan=>(loan.payments||[]).filter(p=>p.date<=end).map(p=>({id:p.id,date:p.date<start?start:p.date,originalDate:p.date,title:loan.title,amount:p.amount,kind:'expense',type:'installment',category:'Рассрочка'})));
 }
 export function goalFundingStatus(state,day){
+ if(!(state.goals||[]).length)return [];
  const balances=accountBalances(state,day);
  const allocated=new Map();
  return (state.goals||[]).map(g=>{
