@@ -31,7 +31,7 @@ export function parseBankCSV(text){
  const parsed=[];
  for(const cells of rows){
   let cents;
-  if(amountCol>=0)cents=bankMoney(cells[amountCol]);
+  if(amountCol>=0&&!(debitCol>=0&&creditCol>=0))cents=bankMoney(cells[amountCol]);
   else {const debit=bankMoney(cells[debitCol]||'0'),credit=bankMoney(cells[creditCol]||'0');cents=credit-debit;}
   if(!Number.isSafeInteger(cents)||cents===0)continue;
   const raw=(cells[dateCol]||'').trim().split(' ')[0];let date=raw;
