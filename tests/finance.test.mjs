@@ -350,3 +350,17 @@ test('deleting goal payment restores reserve and unpaid amount',async()=>{
  assert.equal(goalFundingStatus(restored,'2026-11-18')[0].paid,0);
  assert.equal(pendingEvents(restored,'2026-11-18','2026-12-10').find(e=>e.id==='trip').remaining,100000);
 });
+
+test('future-dated goal payment does not reduce current paid amount or earmark',async()=>{
+ const {goalFundingStatus}=await import('../src/finance.mjs');
+ const base={...blank(),opening:{available:500000,savings:600000},goals:[{id:'trip',title:'Trip',date:'2026-12-05',amount:600000,funded:500000,fundedAccountId:'savings'}]};
+ const future=record(base,{kind:'expense',accountId:'savings',amount:200000,date:'2026-11-25',plannedId:'trip',category:'Цель'});
+ const now=goalFundingStatus(future,'2026-11-18')[0];
+ assert.equal(now.paid,0);
+ assert.equal(now.funded,500000);
+ assert.equal(now.unfunded,100000);
+ const later=goalFundingStatus(future,'2026-11-25')[0];
+ assert.equal(later.paid,200000);
+ assert.equal(later.funded,300000);
+ assert.equal(later.unfunded,100000);
+});
