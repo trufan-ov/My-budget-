@@ -219,3 +219,18 @@ test('forecast rejects invalid savings rates instead of silently crediting inter
   assert.throws(()=>financeForecast(state,'2026-11-18',3,'comfortable'),/ставка накоплений/i);
  }
 });
+
+test('already funded goal reserves only outstanding portion without altering cash',()=>{
+ const base=applyPersonalDraft(blank());
+ const funded={...base,goals:base.goals.map(g=>g.id==='stag'?{...g,funded:300000}:g)};
+ const original=pendingEvents(base,'2026-11-18','2026-12-06').find(e=>e.id==='stag');
+ const reduced=pendingEvents(funded,'2026-11-18','2026-12-06').find(e=>e.id==='stag');
+ assert.equal(original.remaining,500000);
+ assert.equal(reduced.remaining,200000);
+ assert.equal(dailyPlan(funded,'2026-11-18','2026-12-06').pending.find(e=>e.id==='stag').remaining,200000);
+});
+test('fully funded goals no longer reserve money a second time',()=>{
+ const base=applyPersonalDraft(blank());
+ const funded={...base,goals:base.goals.map(g=>g.id==='stag'?{...g,funded:g.amount}:g)};
+ assert.equal(pendingEvents(funded,'2026-11-18','2026-12-06').some(e=>e.id==='stag'),false);
+});
