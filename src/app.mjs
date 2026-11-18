@@ -14,7 +14,7 @@ const deadlineBudget=()=>dailyPlan(state,today,addDays(today,45));
 function nextSalaryForUI(){const a=futureOccurrences(state,addDays(today,1),addDays(today,40)).find(e=>e.type==='salary');return a?.date||addDays(today,14);}
 const titleMap={home:'Главная',history:'Операции',accounts:'Счета',debts:'Долги',plan:'План',forecast:'Накопления',settings:'Настройки',more:'Ещё'};
 function toast(msg,error=false){document.querySelector('.toast')?.remove();const el=document.createElement('div');el.className=`toast${error?' error':''}`;el.textContent=msg;document.body.append(el);clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.remove(),3800);}
-async function commit(next,message){try{validateState(next);await save(next);state=next;render();if(message)toast(message);}catch(err){toast(err.message,true);}}
+async function commit(next,message){try{if(state?.settings?.demo===true&&next.settings?.demo===true)next={...next,settings:{...next.settings,demo:false}};validateState(next);await save(next);state=next;render();if(message)toast(message);}catch(err){toast(err.message,true);}}
 function navButtons(){
  const items=[['home','Главная'],['history','Операции'],['accounts','Счета'],['debts','Долги'],['plan','План'],['forecast','Прогноз'],['settings','Настройки']];
  const mobile=[['home','Главная','⌂'],['history','Операции','☷'],['plan','План','▦'],['more','Ещё','☰']];
