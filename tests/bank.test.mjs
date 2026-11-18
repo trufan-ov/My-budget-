@@ -55,3 +55,12 @@ test('bank parser recognizes tab-separated statement columns',()=>{
  assert.equal(rows[0].amount,12345);
  assert.equal(rows[0].kind,'expense');
 });
+
+test('negative values in debit column remain expenses, not income',()=>{
+ const rows=parseBankCSV('Дата;Списание;Зачисление;Описание\n18.11.2026;-123,45;;Оплата\n19.11.2026;;+250,00;Возврат');
+ assert.deepEqual(rows.map(x=>[x.kind,x.amount]),[['expense',12345],['income',25000]]);
+});
+test('ambiguous statement row with both debit and credit is not imported',()=>{
+ const rows=parseBankCSV('Дата;Списание;Зачисление;Описание\n18.11.2026;100;200;Ошибка\n19.11.2026;50;;Оплата');
+ assert.deepEqual(rows.map(x=>[x.kind,x.amount]),[['expense',5000]]);
+});
