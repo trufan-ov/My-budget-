@@ -1,4 +1,4 @@
-import {uid,record,addMonths,dateISO,parseDate} from './core.mjs';
+import {uid,record,ledgerEntries,addMonths,dateISO,parseDate} from './core.mjs';
 const validDate=value=>typeof value==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(value)&&dateISO(parseDate(value))===value;
 
 export function debtBalance(debt,transactions=[]){
@@ -21,7 +21,7 @@ export function payDebt(state,id,{principal,interest=0,date,accountId='main',pla
  const debt=(state.debts||[]).find(d=>d.id===id);
  if(!debt)throw Error('Долг не найден');
  if(!Number.isSafeInteger(principal)||principal<0||!Number.isSafeInteger(interest)||interest<0||principal+interest<=0)throw Error('Некорректная сумма');
- const outstanding=debtBalance(debt,state.transactions).principal;
+ const outstanding=debtBalance(debt,ledgerEntries(state)).principal;
  if(principal>outstanding)throw Error('Погашение превышает остаток долга');
  // Borrowed debt repayment is a cash outflow; lent debt repayment is a cash inflow.
  const kind=debt.type==='lent'?'income':'expense';
@@ -37,10 +37,10 @@ export function creditCardStatus(debt,transactions=[],today){
   graceUntil,graceExpired:!!(graceUntil&&today&&today>graceUntil&&owed>0),
   graceStatus:!graceUntil?'not-configured':!today?'unknown':owed===0?'settled':today>graceUntil?'expired':'active'};
 }
-export function netWorth(state,balances){
+export function netWorth(state,balances,settled=ledgerEntries(state)){
  const assets=Object.values(balances).reduce((a,b)=>a+b,0);
  const debts=(state.debts||[]).reduce((sum,d)=>{
-  const p=debtBalance(d,state.transactions).principal;
+  const p=debtBalance(d,settled).principal;
   return sum+(d.type==='lent'?p:-p);
  },0);
  return assets+debts;

@@ -39,16 +39,10 @@ export function goalEvents(state,start,end,asOf=start){
  const funded=new Map(goalFundingStatus(state,asOf).map(g=>[g.id,g]));
  return (state.goals||[]).filter(g=>g.date<=end).map(g=>({id:g.id,date:g.date<start?start:g.date,originalDate:g.date,title:g.title,amount:funded.get(g.id).unfunded,kind:'expense',type:'goal',category:'Цель'}));
 }
-export function pendingEvents(state,start,end,asOf=start){
- const actual=state.transactions||[];
- const from=state.settings?.planning?.startDate||start;
- const recurring=futureOccurrences(state,from<start?from:start,end,true).filter(e=>e.kind!=='income'||e.date>=start).map(e=>({...e,originalDate:e.date,date:e.date<start?start:e.date}));
- const overdueOneOffs=(state.oneOffs||[]).filter(e=>e.date<start&&e.date<=end&&(e.kind||'expense')==='expense').map(e=>({...e,kind:e.kind||'expense',type:'oneOff',originalDate:e.date,date:start}));
- const debts=(state.debts||[]).filter(d=>d.type!=='lent').flatMap(d=>{
+function outstandingDebtEvents(d,payments,start,end){
   if(Array.isArray(d.schedule)&&d.schedule.length){
    // Principal paid manually reduces upcoming scheduled principal instead of
    // leaving the full original schedule and counting the repayment twice.
-   const payments=actual.filter(t=>t.debtId===d.id);
    let manualPrincipal=payments.filter(t=>!t.plannedId?.startsWith('debt-schedule:'+d.id+':')).reduce((n,t)=>n+(t.principal||0),0);
    return d.schedule.map((p,i)=>{
     const id='debt-schedule:'+d.id+':'+i;
@@ -63,24 +57,109 @@ export function pendingEvents(state,start,end,asOf=start){
     return {id,debtId:d.id,date:p.date<start?start:p.date,originalDate:p.date,title:d.title+' — платёж '+(i+1),amount:principal+interest,kind:'expense',type:'debtSchedule',category:'Кредиты',principal,interest,paid:principalPaid+interestPaid+allocated,remaining:principal+interest};
    }).filter(p=>p.originalDate<=end);
   }
-  return d.dueDate&&d.dueDate<=end?[{id:'debt-due:'+d.id,debtId:d.id,date:d.dueDate<start?start:d.dueDate,originalDate:d.dueDate,title:d.title,amount:d.principal,kind:'expense',type:'debt',category:'Кредиты'}]:[];
+  const paid=payments.reduce((total,t)=>total+(t.principal||0),0);
+  return d.dueDate&&d.dueDate<=end?[{id:'debt-due:'+d.id,debtId:d.id,date:d.dueDate<start?start:d.dueDate,originalDate:d.dueDate,title:d.title,amount:d.principal,paid,remaining:Math.max(0,d.principal-paid),kind:'expense',type:'debt',category:'Кредиты'}]:[];
+}
+
+export function pendingEvents(state,start,end,asOf=start){
+ const actual=(state.transactions||[]).filter(t=>!t.historical&&(!state.openingDate||t.date>=state.openingDate));
+ const plannedStart=state.settings?.planning?.startDate;
+ const bookedMonths=new Map();
+ for(const tx of actual){
+  if(!tx.plannedId||tx.kind!=='expense')continue;
+  const parts=/^(.*):(\d{4}-(?:0[1-9]|1[0-2]))$/.exec(tx.plannedId);
+  if(!parts)continue;
+  const months=bookedMonths.get(parts[1])||new Set();
+  months.add(parts[2]);
+  bookedMonths.set(parts[1],months);
+ }
+ const recurring=state.rules.flatMap(rule=>{
+  const knownMonths=bookedMonths.get(rule.id);
+  const earliestBooked=knownMonths?[...knownMonths].sort()[0]+'-01':start;
+  const configured=rule.start||plannedStart;
+  const from=[start,asOf,configured||start,earliestBooked].sort()[0];
+  return futureOccurrences({...state,rules:[rule],oneOffs:[]},from,end,true)
+   .filter(event=>event.date>=start||(event.kind==='expense'&&(
+    event.date>=asOf||Boolean(configured&&event.date>=configured)||knownMonths?.has(event.date.slice(0,7))
+   )))
+   .map(event=>({...event,originalDate:event.date,date:event.date<start?start:event.date}));
  });
- const all=[...recurring,...overdueOneOffs,...installmentEvents(state,start,end),...goalEvents(state,start,end,asOf),...debts];
+ const oneOffs=(state.oneOffs||[]).filter(e=>e.date<=end&&(e.date>=start||(e.kind||'expense')==='expense')).map(e=>({...e,kind:e.kind||'expense',type:'oneOff',originalDate:e.date,date:e.date<start?start:e.date}));
+ const debts=(state.debts||[]).filter(d=>d.type!=='lent').flatMap(d=>outstandingDebtEvents(d,actual.filter(t=>t.debtId===d.id),start,end));
+ const all=[...recurring,...oneOffs,...installmentEvents(state,start,end),...goalEvents(state,start,end,asOf),...debts];
  return all.map(e=>{
-   if(e.type==='debtSchedule')return {...e,remaining:(state.closedPlans||[]).includes(e.id)?0:e.remaining};
-   const paid=e.type==='goal'?0:actual.filter(t=>e.type==='debt'?t.debtId===e.debtId:t.plannedId===e.id).reduce((a,t)=>a+(e.type==='debt'?t.principal||0:t.amount),0);
+   if(e.type==='debtSchedule'||e.type==='debt')return {...e,remaining:(state.closedPlans||[]).includes(e.id)?0:e.remaining};
+   const paid=e.type==='goal'?0:actual.filter(t=>t.plannedId===e.id).reduce((a,t)=>a+t.amount,0);
    const closed=(state.closedPlans||[]).includes(e.id);
    return {...e,paid,remaining:closed?0:Math.max(0,e.amount-paid)};
- }).filter(e=>e.remaining>0);
+ }).filter(e=>e.remaining>0).sort((a,b)=>a.date.localeCompare(b.date)||(a.originalDate||a.date).localeCompare(b.originalDate||b.date)||a.id.localeCompare(b.id));
 }
+
+function projectedBills(state,today,start,end){
+ const billIds=new Set([
+  ...state.oneOffs.filter(e=>(e.kind||'expense')==='expense').map(e=>e.id),
+  ...(state.installments||[]).flatMap(loan=>loan.payments.map(p=>p.id)),
+ ]);
+ const recurringIds=new Set(state.rules.filter(rule=>rule.type==='expense').map(rule=>rule.id));
+ const debts=new Map((state.debts||[]).filter(d=>d.type!=='lent').map(d=>[d.id,d]));
+ const future=state.transactions.filter(tx=>{
+  if(tx.kind!=='expense'||tx.date<=today||tx.historical||(state.openingDate&&tx.date<state.openingDate))return false;
+  if(debts.has(tx.debtId))return true;
+  if(!tx.plannedId)return false;
+  const occurrence=/^(.*):\d{4}-\d{2}$/.exec(tx.plannedId);
+  return billIds.has(tx.plannedId)||(occurrence&&recurringIds.has(occurrence[1]));
+ }).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
+ const futureIds=new Set(future.map(tx=>tx.id));
+ const snapshot=future.length?{...state,transactions:state.transactions.filter(tx=>!futureIds.has(tx.id))}:state;
+ const events=pendingEvents(snapshot,start,end,today);
+ const byId=new Map(events.map(e=>[e.id,e]));
+ const outstanding=new Map(events.map(e=>[e.id,e.remaining]));
+ const adjustments=[];
+ const debtPayments=new Map();
+ function offsetAtDueDate(id,amount,date){
+  const offset=Math.min(amount,outstanding.get(id)||0);
+  if(!offset)return;
+  outstanding.set(id,outstanding.get(id)-offset);
+  const due=byId.get(id).date;
+  adjustments.push({date:due>date?due:date,accountId:'main',expense:-offset});
+ }
+ for(const tx of future){
+  if(tx.date>end)break;
+  adjustments.push({date:tx.date,accountId:tx.accountId||'main',expense:tx.amount});
+  if(!debts.has(tx.debtId)){
+   offsetAtDueDate(tx.plannedId,tx.amount,tx.date);
+   continue;
+  }
+  let payments=debtPayments.get(tx.debtId);
+  if(!payments){
+   payments=snapshot.transactions.filter(t=>t.debtId===tx.debtId&&!t.historical&&(!state.openingDate||t.date>=state.openingDate));
+   debtPayments.set(tx.debtId,payments);
+  }
+  payments.push(tx);
+  // Apply the same allocation of principal and interest used by the calendar.
+  for(const row of outstandingDebtEvents(debts.get(tx.debtId),payments,start,end)){
+   const difference=(outstanding.get(row.id)||0)-row.remaining;
+   if(difference>0)offsetAtDueDate(row.id,difference,tx.date);
+  }
+ }
+ return {events,adjustments};
+}
+
 export function dailyPlan(state,today,end){
  const balance=balanceAt(state,today),target=Math.max(0,state.settings?.planning?.dailyTarget??0);
  const days=Math.max(1,diffDays(today,addDays(end,1)));
  const balances=accountBalances(state,today);
  const opening=accountList(state).filter(a=>a.includeInDaily||(a.id==='savings'&&state.settings?.planning?.includeSavingsInDaily)).reduce((sum,a)=>sum+(balances[a.id]||0),0);
- const pending=pendingEvents(state,today,end),byDate=new Map();
+ const {events:pending,adjustments}=projectedBills(state,today,today,end);
+ const byDate=new Map();
  for(const e of pending){const item=byDate.get(e.date)||{income:0,expense:0};item[e.kind==='income'?'income':'expense']+=e.remaining;byDate.set(e.date,item);}
  const included=new Set(accountList(state).filter(a=>a.includeInDaily||(a.id==='savings'&&state.settings?.planning?.includeSavingsInDaily)).map(a=>a.id));
+ for(const adjustment of adjustments){
+  if(!included.has(adjustment.accountId))continue;
+  const item=byDate.get(adjustment.date)||{income:0,expense:0};
+  item.expense+=adjustment.expense;
+  byDate.set(adjustment.date,item);
+ }
  const funding=new Map(goalFundingStatus(state,today).map(g=>[g.id,g]));
  const earmarked=[...funding.values()].filter(g=>included.has(g.accountId)).reduce((sum,g)=>sum+g.funded,0);
  // Future-dated legacy goal transactions are absent from today's real balance.
@@ -122,7 +201,15 @@ export function financeForecast(state,today,months=6,scenario='comfortable'){
  const first=new Date(today+'T12:00:00');
  const monthStart=(n)=>{const d=new Date(first.getFullYear(),first.getMonth()+n,1,12);return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0')].join('-');};
  const end=monthStart(months)+'-01';
- const events=pendingEvents(state,start,end,today),byMonth=new Map();
+ const {events,adjustments}=projectedBills(state,today,start,addDays(end,-1));
+ const byMonth=new Map();
+ for(const adjustment of adjustments){
+  const month=adjustment.date.slice(0,7);
+  const item=byMonth.get(month)||{income:0,expense:0,savings:0};
+  if(adjustment.accountId==='savings')item.savings-=adjustment.expense;
+  else item.expense+=adjustment.expense;
+  byMonth.set(month,item);
+ }
  // Legacy future-dated goal payments are not in today's account balance.
  // Forecast them as future cash outflows rather than treating them as paid now.
  const futureGoalPayments=(state.transactions||[]).filter(t=>t.kind==='expense'&&t.plannedId&&(state.goals||[]).some(g=>g.id===t.plannedId)&&t.date>=start&&t.date<end&&!t.historical&&(!state.openingDate||t.date>=state.openingDate));
