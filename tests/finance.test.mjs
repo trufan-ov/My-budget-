@@ -426,3 +426,22 @@ test('goal overpayment does not create a negative future obligation',async()=>{
  assert.equal(goalFundingStatus(paid,'2026-11-18')[0].unfunded,0);
  assert.equal(pendingEvents(paid,'2026-11-18','2026-12-10').some(e=>e.id==='trip'),false);
 });
+
+test('historical goal transaction does not reduce current goal obligation or reserve',async()=>{
+ const {goalFundingStatus}=await import('../src/finance.mjs');
+ const base={...blank(),openingDate:'2026-11-18',opening:{available:1000000,savings:600000},goals:[{id:'trip',title:'Trip',date:'2026-12-05',amount:600000,funded:500000,fundedAccountId:'savings'}]};
+ const historical=record(base,{kind:'expense',accountId:'savings',amount:200000,date:'2026-11-10',historical:true,plannedId:'trip',category:'Цель'});
+ const funding=goalFundingStatus(historical,'2026-11-18')[0];
+ assert.equal(funding.paid,0);
+ assert.equal(funding.funded,500000);
+ assert.equal(funding.unfunded,100000);
+});
+test('multiple payments after goal deadline update the remaining obligation by evaluation date',async()=>{
+ const {goalFundingStatus}=await import('../src/finance.mjs');
+ const base={...blank(),opening:{available:1000000,savings:0},goals:[{id:'late',title:'Late',date:'2026-11-15',amount:500000,funded:0}]};
+ let state=record(base,{kind:'expense',accountId:'main',amount:100000,date:'2026-11-19',plannedId:'late',category:'Цель'});
+ state=record(state,{kind:'expense',accountId:'main',amount:150000,date:'2026-11-21',plannedId:'late',category:'Цель'});
+ assert.equal(goalFundingStatus(state,'2026-11-18')[0].unfunded,500000);
+ assert.equal(goalFundingStatus(state,'2026-11-19')[0].unfunded,400000);
+ assert.equal(goalFundingStatus(state,'2026-11-21')[0].unfunded,250000);
+});
