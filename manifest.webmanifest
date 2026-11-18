@@ -3,8 +3,8 @@
   "short_name": "Бюджет",
   "start_url": "./",
   "display": "standalone",
-  "background_color": "#0d1728",
-  "theme_color": "#0d1728",
+  "background_color": "#111315",
+  "theme_color": "#111315",
   "icons": [
     {
       "src": "./icon.svg",
