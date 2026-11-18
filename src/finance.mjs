@@ -21,13 +21,29 @@ export function pendingEvents(state,start,end){
  const recurring=futureOccurrences(state,from<start?from:start,end,true).filter(e=>e.kind!=='income'||e.date>=start).map(e=>({...e,originalDate:e.date,date:e.date<start?start:e.date}));
  const debts=(state.debts||[]).filter(d=>d.type!=='lent').flatMap(d=>{
   if(Array.isArray(d.schedule)&&d.schedule.length){
-   return d.schedule.filter(p=>p.date<=end).map((p,i)=>({id:'debt-schedule:'+d.id+':'+i,debtId:d.id,date:p.date<start?start:p.date,originalDate:p.date,title:d.title+' — платёж '+(i+1),amount:p.amount,kind:'expense',type:'debtSchedule',category:'Кредиты',principal:p.principal,interest:p.interest}));
+   // Principal paid manually reduces upcoming scheduled principal instead of
+   // leaving the full original schedule and counting the repayment twice.
+   const payments=actual.filter(t=>t.debtId===d.id);
+   let manualPrincipal=payments.filter(t=>!t.plannedId?.startsWith('debt-schedule:'+d.id+':')).reduce((n,t)=>n+(t.principal||0),0);
+   return d.schedule.map((p,i)=>{
+    const id='debt-schedule:'+d.id+':'+i;
+    const matched=payments.filter(t=>t.plannedId===id);
+    const principalPaid=matched.reduce((n,t)=>n+(t.principal||0),0);
+    const interestPaid=matched.reduce((n,t)=>n+(t.interest||0),0);
+    const principalRemaining=Math.max(0,p.principal-principalPaid);
+    const allocated=Math.min(manualPrincipal,principalRemaining);
+    manualPrincipal-=allocated;
+    const principal=Math.max(0,principalRemaining-allocated);
+    const interest=principal===0?0:Math.max(0,p.interest-interestPaid);
+    return {id,debtId:d.id,date:p.date<start?start:p.date,originalDate:p.date,title:d.title+' — платёж '+(i+1),amount:principal+interest,kind:'expense',type:'debtSchedule',category:'Кредиты',principal,interest,paid:principalPaid+interestPaid+allocated,remaining:principal+interest};
+   }).filter(p=>p.originalDate<=end);
   }
   return d.dueDate&&d.dueDate<=end?[{id:'debt-due:'+d.id,debtId:d.id,date:d.dueDate<start?start:d.dueDate,originalDate:d.dueDate,title:d.title,amount:d.principal,kind:'expense',type:'debt',category:'Кредиты'}]:[];
  });
  const all=[...recurring,...installmentEvents(state,start,end),...goalEvents(state,start,end),...debts];
  return all.map(e=>{
-   const paid=actual.filter(t=>e.type==='debt'?t.debtId===e.debtId:e.type==='debtSchedule'?t.plannedId===e.id:t.plannedId===e.id).reduce((a,t)=>a+(e.type==='debt'?t.principal||0:t.amount),0);
+   if(e.type==='debtSchedule')return {...e,remaining:(state.closedPlans||[]).includes(e.id)?0:e.remaining};
+   const paid=actual.filter(t=>e.type==='debt'?t.debtId===e.debtId:t.plannedId===e.id).reduce((a,t)=>a+(e.type==='debt'?t.principal||0:t.amount),0);
    const closed=(state.closedPlans||[]).includes(e.id);
    return {...e,paid,remaining:closed?0:Math.max(0,e.amount-paid)};
  }).filter(e=>e.remaining>0);
