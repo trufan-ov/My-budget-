@@ -19,10 +19,15 @@ export function pendingEvents(state,start,end){
  const actual=state.transactions||[];
  const from=state.settings?.planning?.startDate||start;
  const recurring=futureOccurrences(state,from<start?from:start,end,true).filter(e=>e.kind!=='income'||e.date>=start).map(e=>({...e,originalDate:e.date,date:e.date<start?start:e.date}));
- const debts=(state.debts||[]).filter(d=>d.dueDate&&d.dueDate<=end&&d.type!=='lent').map(d=>({id:'debt-due:'+d.id,date:d.dueDate<start?start:d.dueDate,originalDate:d.dueDate,title:d.title,amount:d.principal,kind:'expense',type:'debt',category:'Кредиты'}));
+ const debts=(state.debts||[]).filter(d=>d.type!=='lent').flatMap(d=>{
+  if(Array.isArray(d.schedule)&&d.schedule.length){
+   return d.schedule.filter(p=>p.date<=end).map((p,i)=>({id:'debt-schedule:'+d.id+':'+i,debtId:d.id,date:p.date<start?start:p.date,originalDate:p.date,title:d.title+' — платёж '+(i+1),amount:p.amount,kind:'expense',type:'debtSchedule',category:'Кредиты',principal:p.principal,interest:p.interest}));
+  }
+  return d.dueDate&&d.dueDate<=end?[{id:'debt-due:'+d.id,debtId:d.id,date:d.dueDate<start?start:d.dueDate,originalDate:d.dueDate,title:d.title,amount:d.principal,kind:'expense',type:'debt',category:'Кредиты'}]:[];
+ });
  const all=[...recurring,...installmentEvents(state,start,end),...goalEvents(state,start,end),...debts];
  return all.map(e=>{
-   const paid=actual.filter(t=>e.type==='debt'?t.debtId===e.id.slice(9):t.plannedId===e.id).reduce((a,t)=>a+(e.type==='debt'?t.principal||0:t.amount),0);
+   const paid=actual.filter(t=>e.type==='debt'?t.debtId===e.debtId:e.type==='debtSchedule'?t.plannedId===e.id:t.plannedId===e.id).reduce((a,t)=>a+(e.type==='debt'?t.principal||0:t.amount),0);
    const closed=(state.closedPlans||[]).includes(e.id);
    return {...e,paid,remaining:closed?0:Math.max(0,e.amount-paid)};
  }).filter(e=>e.remaining>0);
