@@ -408,3 +408,21 @@ test('daily plan counts multiple partial goal payments from reserve and main',()
  future=record(future,{kind:'expense',accountId:'main',amount:200000,date:'2026-11-20',plannedId:'trip',category:'Цель'});
  assert.equal(dailyPlan(future,'2026-11-18','2026-11-20').free,800000);
 });
+
+test('overdue goal is due immediately and closing it releases its reserve',async()=>{
+ const {goalFundingStatus}=await import('../src/finance.mjs');
+ const base={...blank(),opening:{available:1000000,savings:0},goals:[{id:'late',title:'Late',date:'2026-11-10',amount:600000,funded:300000,fundedAccountId:'main'}]};
+ assert.equal(pendingEvents(base,'2026-11-18','2026-11-20').find(e=>e.id==='late').date,'2026-11-18');
+ assert.equal(dailyPlan(base,'2026-11-18','2026-11-20').free,400000);
+ const closed={...base,closedPlans:['late']};
+ assert.equal(goalFundingStatus(closed,'2026-11-18')[0].funded,0);
+ assert.equal(pendingEvents(closed,'2026-11-18','2026-11-20').some(e=>e.id==='late'),false);
+ assert.equal(dailyPlan(closed,'2026-11-18','2026-11-20').free,1000000);
+});
+test('goal overpayment does not create a negative future obligation',async()=>{
+ const {goalFundingStatus}=await import('../src/finance.mjs');
+ const base={...blank(),opening:{available:1000000,savings:0},goals:[{id:'trip',title:'Trip',date:'2026-12-05',amount:100000,funded:0}]};
+ const paid=record(base,{kind:'expense',accountId:'main',amount:150000,date:'2026-11-18',plannedId:'trip',category:'Цель'});
+ assert.equal(goalFundingStatus(paid,'2026-11-18')[0].unfunded,0);
+ assert.equal(pendingEvents(paid,'2026-11-18','2026-12-10').some(e=>e.id==='trip'),false);
+});
