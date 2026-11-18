@@ -151,3 +151,15 @@ test('backup validation rejects malformed financial obligations and dangling deb
  assert.throws(()=>validateState({...base,installments:[{id:'i',payments:[{id:'p',date:'2026-12-01',amount:-1}]}]}),/рассрочки/);
  assert.throws(()=>validateState({...base,transactions:[...base.transactions,{id:'debt-tx',kind:'expense',date:'2026-11-18',amount:100,debtId:'missing'}],debts:[loan]}),/отсутствующий долг/);
 });
+
+test('historical spending forecast excludes debt payments and pre-opening bank history',async()=>{
+ const {financeForecast}=await import('../src/finance.mjs');
+ const {demo}=await import('../src/core.mjs');
+ const state={...demo('2026-11-18'),opening:{available:10000000,savings:0},rules:[],oneOffs:[],transactions:[
+  {id:'food',kind:'expense',date:'2026-11-17',amount:30000,note:'Food'},
+  {id:'debt',kind:'expense',date:'2026-11-16',amount:300000,debtId:'loan'},
+  {id:'old',kind:'expense',date:'2026-11-15',amount:900000,historical:true}
+ ],settings:{savingsApr:0,planning:{dailyTarget:100000}}};
+ const rows=financeForecast(state,'2026-11-18',1,'actual');
+ assert.equal(rows[0].daily,1000);
+});
