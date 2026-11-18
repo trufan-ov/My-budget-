@@ -458,3 +458,9 @@ test('overdue goal with two future partial payments is counted once in forecast'
  state=record(state,{kind:'expense',accountId:'main',amount:150000,date:'2026-11-21',plannedId:'late',category:'Цель'});
  assert.equal(financeForecast(state,'2026-11-18',2)[0].available,500000);
 });
+
+test('forecast counts a goal payment tomorrow exactly once',()=>{
+ const base={...blank(),opening:{available:1000000,savings:0},goals:[{id:'trip',title:'Trip',date:'2026-12-05',amount:500000,funded:0}]};
+ const state=record(base,{kind:'expense',accountId:'main',amount:100000,date:'2026-11-19',plannedId:'trip',category:'Цель'});
+ assert.equal(financeForecast(state,'2026-11-18',3)[1].available,500000);
+});
