@@ -51,3 +51,17 @@ test('card principal cannot exceed declared credit limit',async()=>{
  const {addDebt}=await import('../src/debts.mjs');
  assert.throws(()=>addDebt({debts:[]},{title:'Карта',type:'creditCard',principal:200000,creditLimit:100000}),/превышает/);
 });
+
+test('manual principal repayment reduces future scheduled payments and prevents duplicate reserve',async()=>{
+ const {pendingEvents}=await import('../src/finance.mjs');
+ const state={transactions:[{id:'manual',date:'2026-11-19',kind:'expense',amount:150000,principal:150000,interest:0,debtId:'loan'}],rules:[],oneOffs:[],debts:[{id:'loan',type:'borrowed',principal:300000,title:'Loan',schedule:[{date:'2026-12-01',principal:100000,interest:1000,amount:101000},{date:'2027-01-01',principal:100000,interest:1000,amount:101000},{date:'2027-02-01',principal:100000,interest:1000,amount:101000}]}]};
+ const events=pendingEvents(state,'2026-11-20','2027-03-01').filter(e=>e.type==='debtSchedule');
+ assert.equal(events.length,2);
+ assert.deepEqual(events.map(e=>[e.principal,e.interest,e.remaining]),[[50000,1000,51000],[100000,1000,101000]]);
+});
+test('scheduled principal and interest already paid are not counted again',async()=>{
+ const {pendingEvents}=await import('../src/finance.mjs');
+ const state={transactions:[{id:'paid',kind:'expense',date:'2026-11-18',debtId:'loan',plannedId:'debt-schedule:loan:0',principal:40000,interest:500,amount:40500}],rules:[],oneOffs:[],debts:[{id:'loan',type:'borrowed',title:'Loan',principal:100000,schedule:[{date:'2026-12-01',principal:100000,interest:1000,amount:101000}]}]};
+ const events=pendingEvents(state,'2026-11-20','2026-12-31');
+ assert.deepEqual([events[0].principal,events[0].interest,events[0].remaining],[60000,500,60500]);
+});
