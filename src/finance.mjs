@@ -71,7 +71,9 @@ export function dailyPlan(state,today,end){
  const opening=accountList(state).filter(a=>a.includeInDaily||(a.id==='savings'&&state.settings?.planning?.includeSavingsInDaily)).reduce((sum,a)=>sum+(balances[a.id]||0),0);
  const pending=pendingEvents(state,today,end),byDate=new Map();
  for(const e of pending){const item=byDate.get(e.date)||{income:0,expense:0};item[e.kind==='income'?'income':'expense']+=e.remaining;byDate.set(e.date,item);}
- let running=opening,cap=Infinity,firstShortfall=null;
+ const included=new Set(accountList(state).filter(a=>a.includeInDaily||(a.id==='savings'&&state.settings?.planning?.includeSavingsInDaily)).map(a=>a.id));
+ const earmarked=goalFundingStatus(state,today).filter(g=>included.has(g.accountId)).reduce((sum,g)=>sum+g.funded,0);
+ let running=opening-earmarked,cap=Infinity,firstShortfall=null;
  for(let i=0;i<days;i++){const day=addDays(today,i),e=byDate.get(day)||{income:0,expense:0};running+=e.income-e.expense;if(running<0&&!firstShortfall)firstShortfall={date:day,amount:-running};cap=Math.min(cap,Math.floor(Math.max(0,running)/(i+1)));}
  return {available:Math.max(0,running),free:running,deficit:Math.max(0,-running),daily:Math.max(0,Math.min(target,cap)),maximumDaily:Math.max(0,cap),days,firstShortfall,pending};
 }
