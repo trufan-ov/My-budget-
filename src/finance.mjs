@@ -20,8 +20,9 @@ export function goalFundingStatus(state,day){
   const accountId=g.fundedAccountId||null;
   const paid=(state.transactions||[]).filter(t=>t.kind==='expense'&&t.plannedId===g.id).reduce((sum,t)=>sum+t.amount,0);
   const paidFromReserve=(state.transactions||[]).filter(t=>t.kind==='expense'&&t.plannedId===g.id&&(t.accountId||'main')===accountId).reduce((sum,t)=>sum+t.amount,0);
-  const requested=Math.max(0,(g.funded||0)-paidFromReserve);
-  const outstanding=Math.max(0,g.amount-paid);
+  const closed=(state.closedPlans||[]).includes(g.id);
+  const requested=closed?0:Math.max(0,(g.funded||0)-paidFromReserve);
+  const outstanding=closed?0:Math.max(0,g.amount-paid);
   const already=accountId?allocated.get(accountId)||0:0;
   const balance=accountId?Math.max(0,balances[accountId]||0):0;
   const funded=accountId?Math.min(requested,outstanding,Math.max(0,balance-already)):0;
