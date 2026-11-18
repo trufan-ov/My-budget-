@@ -21,3 +21,48 @@
 /* Salary-cycle planner */
 .cycle-panel{padding:29px 32px;margin-bottom:28px;background:#1b1b20;border:1px solid #33333a;border-radius:22px}.cycle-eyebrow{color:#9797a0;font-size:12px}.cycle-panel h2{font-size:25px;letter-spacing:-.8px;font-weight:620;margin:9px 0 28px}.cycle-metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-bottom:27px}.cycle-metrics>div{display:grid;gap:9px}.cycle-metrics span,.cycle-details span{font-size:12px;color:#9999a2}.cycle-metrics strong{font-size:clamp(20px,2.6vw,29px);font-weight:620;letter-spacing:-.8px}.cycle-details{border-top:1px solid #34343b;padding-top:12px;display:grid;gap:0}.cycle-details>div{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0}.cycle-details b{font-size:13px;font-weight:550;font-variant-numeric:tabular-nums}.cycle-warning,.cycle-positive{margin-top:17px;padding:17px;background:#302628;border:1px solid #674448;border-radius:13px;color:#f0c7c5;font-size:13px;line-height:1.6}.cycle-warning p{margin:8px 0 12px}.cycle-positive{background:#243027;border-color:#3e5845;color:#b8d5c0}.salary-settings{margin-bottom:22px}.salary-settings .form{margin-top:18px}
 @media(max-width:700px){.cycle-panel{padding:22px 18px;margin-bottom:20px}.cycle-panel h2{font-size:21px}.cycle-metrics{grid-template-columns:repeat(2,1fr);row-gap:23px}.cycle-metrics strong{font-size:23px}.cycle-metrics>div:last-child{grid-column:span 2}.salary-settings .form-cols{grid-template-columns:1fr 1fr}}
+
+/* v4.3 typography and alignment audit: page, card, form and period headings */
+html,body{max-width:100%;overflow-x:hidden}
+.main,.card,.content-section,.period-panel,.planning-intro,.heading-row,.topline{min-width:0}
+h1,h2,h3{overflow-wrap:break-word;word-break:normal;hyphens:auto}
+.title{font-size:clamp(28px,3.1vw,35px);line-height:1.13;letter-spacing:-.035em;margin:7px 0 0;font-weight:680}
+.card-title{font-size:clamp(17px,1.7vw,19px);line-height:1.3;letter-spacing:-.02em;font-weight:620;margin:0 0 18px}
+.heading-row{align-items:flex-start;gap:12px}
+.heading-row .card-title{margin:0;flex:1;min-width:0}
+.heading-row>.btn,.heading-row>.text-link{flex-shrink:0}
+.topline>div:first-child{min-width:0;flex:1}
+.top-date{flex-shrink:0}
+.period-top h2{font-size:clamp(19px,2.2vw,23px);line-height:1.25;letter-spacing:-.025em;overflow-wrap:normal}
+.planning-intro>.btn{flex-shrink:0}
+.period-limits>div,.cycle-metrics>div{min-width:0}
+.period-limits strong,.cycle-metrics strong{overflow-wrap:anywhere}
+.modal-head h2{min-width:0;line-height:1.25}
+.salary-settings .form-cols{min-width:0}
+.salary-settings .field{min-width:0}
+.salary-settings input{min-width:0}
+@media(max-width:700px){
+ .main{padding-top:calc(26px + env(safe-area-inset-top));padding-left:20px;padding-right:20px}
+ .topline{align-items:flex-start;gap:9px;margin-bottom:34px}
+ .title{font-size:clamp(28px,8vw,33px);line-height:1.12}
+ .eyebrow{font-size:12px;line-height:1.3}
+ .top-date{font-size:10px;max-width:100px;text-align:right;padding-top:4px}
+ .card-title{font-size:18px;line-height:1.3}
+ .heading-row{gap:9px}
+ .heading-row>.btn{max-width:48%;white-space:normal;text-align:center}
+ .planning-intro{gap:13px;margin-bottom:18px}
+ .planning-intro>.btn{align-self:flex-start}
+ .period-top{gap:8px}
+ .period-top h2{font-size:19px;line-height:1.3}
+ .period-days{font-size:11px}
+ .period-limits{gap:12px}
+ .salary-settings .form-cols{grid-template-columns:1fr}
+ .modal-head h2{font-size:21px}
+}
+@media(max-width:380px){
+ .top-date{max-width:75px}
+ .title{font-size:28px}
+ .main{padding-left:16px;padding-right:16px}
+ .period-top h2{font-size:18px}
+ .heading-row>.btn{font-size:11px;padding:8px}
+}
