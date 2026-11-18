@@ -48,3 +48,10 @@ test('bank import accepts common date formats and timestamps',()=>{
  const rows=parseBankCSV('Дата;Сумма;Описание\n18/11/2026;-10;one\n2026-11-19T10:22:00;20;two\n2026/11/20;-30;three');
  assert.deepEqual(rows.map(x=>x.date),['2026-11-18','2026-11-19','2026-11-20']);
 });
+
+test('bank parser recognizes tab-separated statement columns',()=>{
+ const rows=parseBankCSV('Дата\tСумма\tОписание\n18.11.2026\t-123,45\tПокупка');
+ assert.equal(rows.length,1);
+ assert.equal(rows[0].amount,12345);
+ assert.equal(rows[0].kind,'expense');
+});
