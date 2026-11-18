@@ -464,3 +464,19 @@ test('forecast counts a goal payment tomorrow exactly once',()=>{
  const state=record(base,{kind:'expense',accountId:'main',amount:100000,date:'2026-11-19',plannedId:'trip',category:'Цель'});
  assert.equal(financeForecast(state,'2026-11-18',3)[1].available,500000);
 });
+
+test('future goal payment marked historical never reduces daily budget or forecast',()=>{
+ const base={...blank(),opening:{available:1000000,savings:0},goals:[{id:'trip',title:'Trip',date:'2026-12-05',amount:500000,funded:0}]};
+ const state=record(base,{kind:'expense',accountId:'main',amount:100000,date:'2026-11-19',historical:true,plannedId:'trip',category:'Цель'});
+ assert.equal(dailyPlan(state,'2026-11-18','2026-12-05').free,500000);
+ assert.equal(financeForecast(state,'2026-11-18',3)[1].available,500000);
+});
+test('fully reserved goal paid from main and savings in future has consistent daily and monthly totals',()=>{
+ const base={...blank(),opening:{available:1000000,savings:600000},goals:[{id:'trip',title:'Trip',date:'2026-12-05',amount:500000,funded:500000,fundedAccountId:'savings'}]};
+ let state=record(base,{kind:'expense',accountId:'savings',amount:200000,date:'2026-11-20',plannedId:'trip',category:'Цель'});
+ state=record(state,{kind:'expense',accountId:'main',amount:300000,date:'2026-11-22',plannedId:'trip',category:'Цель'});
+ assert.equal(dailyPlan(state,'2026-11-18','2026-12-05').free,700000);
+ const rows=financeForecast(state,'2026-11-18',3);
+ assert.equal(rows[0].available,700000);
+ assert.equal(rows[1].savings,400000);
+});
