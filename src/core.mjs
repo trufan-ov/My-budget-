@@ -9,11 +9,50 @@ export function diffDays(a,b) { return Math.round((parseDate(b)-parseDate(a))/DA
 export function money(value) { const raw=String(value).trim().replace(/\s/g,'').replace(',','.'); if(!/^\d+(\.\d{1,2})?$/.test(raw)) throw new Error('Введите сумму без знака, максимум 2 знака после запятой'); const [r,k='']=raw.split('.');const result=Number(r)*100+Number(k.padEnd(2,'0'));if(!Number.isSafeInteger(result)||result<=0)throw new Error('Сумма должна быть больше нуля');return result; }
 export const rub = c => new Intl.NumberFormat('ru-RU',{style:'currency',currency:'RUB',maximumFractionDigits:2}).format(c/100);
 export function salaryDate(year,month,day,moveWeekends=true){const d=new Date(year,month-1,day,12);if(moveWeekends){if(d.getDay()===6)d.setDate(d.getDate()-1);if(d.getDay()===0)d.setDate(d.getDate()-2);}return dateISO(d);}
-export function validateTransaction(tx){if(!['income','expense','transfer','interest'].includes(tx.kind))throw Error('Недопустимый тип операции');if(!Number.isSafeInteger(tx.amount)||tx.amount<=0)throw Error('Недопустимая сумма');if(!/^\d{4}-\d{2}-\d{2}$/.test(tx.date)||dateISO(parseDate(tx.date))!==tx.date)throw Error('Некорректная дата');if(tx.kind==='transfer'&&!['toSavings','fromSavings'].includes(tx.direction))throw Error('Укажите направление перевода');}
-export function balanceAt(state, day = '9999-12-31') {let available=state.opening.available,savings=state.opening.savings;
-for (const tx of state.transactions.filter(t=>t.date<=day&&(!state.openingDate||t.date>state.openingDate)).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id))){validateTransaction(tx);if(tx.kind==='income')available+=tx.amount;else if(tx.kind==='expense')available-=tx.amount;else if(tx.kind==='interest')savings+=tx.amount;else if(tx.direction==='toSavings'){available-=tx.amount;savings+=tx.amount;}else{available+=tx.amount;savings-=tx.amount;}}
-return {available,savings,total:available+savings};}
-export function record(state, transaction, options={}) {const tx={id:uid(),date:dateISO(),category:'Другое',note:'',...transaction};validateTransaction(tx);if(state.transactions.some(t=>t.id===tx.id))throw Error('Дублирующийся идентификатор операции');const next={...state,transactions:[...state.transactions,tx]};const previous=balanceAt(state,tx.date);if(!options.allowNegative&&tx.kind==='expense'&&previous.available<tx.amount)throw Error('Недостаточно доступных средств');if(!options.allowNegative&&tx.kind==='transfer'){if(tx.direction==='toSavings'&&previous.available<tx.amount)throw Error('Недостаточно средств для перевода');if(tx.direction==='fromSavings'&&previous.savings<tx.amount)throw Error('Недостаточно средств в копилке');}return next;}
+export function validateTransaction(tx){if(!['income','expense','transfer','interest'].includes(tx.kind))throw Error('Недопустимый тип операции');if(!Number.isSafeInteger(tx.amount)||tx.amount<=0)throw Error('Недопустимая сумма');if(!/^\d{4}-\d{2}-\d{2}$/.test(tx.date)||dateISO(parseDate(tx.date))!==tx.date)throw Error('Некорректная дата');if(tx.kind==='transfer'&&!(tx.fromAccount&&tx.toAccount)&&!['toSavings','fromSavings'].includes(tx.direction))throw Error('Укажите направление перевода');}
+export function accountList(state){
+ const base=[{id:'main',name:'Основной счёт',opening:state.opening.available,includeInDaily:true},{id:'savings',name:'Копилка',opening:state.opening.savings,includeInDaily:false}];
+ return [...base,...(state.accounts||[]).filter(a=>!['main','savings'].includes(a.id))];
+}
+export function accountBalances(state,day='9999-12-31'){
+ const balances=Object.fromEntries(accountList(state).map(a=>[a.id,a.opening]));
+ for(const tx of state.transactions.filter(t=>t.date<=day&&!t.historical&&(!state.openingDate||t.date>=state.openingDate)).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id))){
+  validateTransaction(tx);
+  if(tx.kind==='transfer'){
+   const from=tx.fromAccount|| (tx.direction==='fromSavings'?'savings':'main');
+   const to=tx.toAccount|| (tx.direction==='fromSavings'?'main':'savings');
+   if(!(from in balances)||!(to in balances)||from===to)throw Error('Некорректные счета перевода');
+   balances[from]-=tx.amount;balances[to]+=tx.amount;
+  }else{
+   const id=tx.accountId||(tx.kind==='interest'?'savings':'main');
+   if(!(id in balances))throw Error('Счёт операции не найден');
+   balances[id]+=tx.kind==='expense'?-tx.amount:tx.amount;
+  }
+ }
+ return balances;
+}
+export function balanceAt(state,day='9999-12-31'){
+ const accounts=accountBalances(state,day);
+ const available=Object.entries(accounts).filter(([id])=>id!=='savings').reduce((n,[,v])=>n+v,0);
+ const savings=accounts.savings||0;
+ return {available,savings,total:available+savings};
+}
+export function record(state,transaction,options={}){
+ const tx={id:uid(),date:dateISO(),category:'Другое',note:'',...transaction};
+ validateTransaction(tx);
+ if(state.transactions.some(t=>t.id===tx.id))throw Error('Дублирующийся идентификатор операции');
+ if(state.openingDate&&tx.date<state.openingDate&&!tx.historical)throw Error('Операция раньше даты начальных остатков: импортируй её как историческую');
+ const before=accountBalances(state,tx.date);
+ const from=tx.fromAccount||(tx.direction==='fromSavings'?'savings':'main');
+ const account=tx.accountId||(tx.kind==='interest'?'savings':'main');
+ if(!options.allowNegative&&!tx.historical){
+  if(tx.kind==='expense'&&(before[account]??-1)<tx.amount)throw Error('Недостаточно средств на выбранном счёте');
+  if(tx.kind==='transfer'&&(before[from]??-1)<tx.amount)throw Error('Недостаточно средств для перевода');
+ }
+ const next={...state,transactions:[...state.transactions,tx]};
+ accountBalances(next,tx.date);
+ return next;
+}
 export function extraIncome(state,{amount,toSavings=0,date=dateISO(),note='Дополнительный доход'}){if(!Number.isSafeInteger(toSavings)||toSavings<0||toSavings>amount)throw Error('В копилку нельзя направить больше дохода');let next=record(state,{kind:'income',amount,date,category:'Доп. доход',note});if(toSavings)next=record(next,{kind:'transfer',direction:'toSavings',amount:toSavings,date,category:'Копилка',note:'Из дополнительного дохода',groupId:next.transactions.at(-1).id});return next;}
 export function deleteTransaction(state,id){const found=state.transactions.find(t=>t.id===id);if(!found)return state;const ids=new Set([id]);if(found.kind==='income')for(const tx of state.transactions)if(tx.groupId===id)ids.add(tx.id);if(found.groupId)ids.add(found.groupId);const next={...state,transactions:state.transactions.filter(t=>!ids.has(t.id))};return next;}
 export function futureOccurrences(state,start,end,includeCompleted=false){const out=[];for(const rule of state.rules){if(rule.enabled===false)continue;const s=parseDate(start), e=parseDate(end);for(let year=s.getFullYear()-1;year<=e.getFullYear()+1;year++)for(let month=1;month<=12;month++){
@@ -34,7 +73,7 @@ const start=month===0?addDays(today,1):dateISO(new Date(parseDate(today).getFull
 const apr=Number(state.settings?.savingsApr||0);const interest=Math.max(0,Math.round(Math.max(projected.savings,0)*apr/1200));projected.savings+=interest;
 sorted.push({month:start.slice(0,7),available:projected.available,savings:projected.savings,total:projected.available+projected.savings,interest,events:grouped.length});}
 return sorted;}
-export function validateState(s){if(!s||!s.opening||!Number.isSafeInteger(s.opening.available)||!Number.isSafeInteger(s.opening.savings)||!Array.isArray(s.transactions)||!Array.isArray(s.rules)||!Array.isArray(s.oneOffs))throw Error('Неверная структура данных');if(s.opening.available<0||s.opening.savings<0)throw Error('Отрицательный стартовый баланс');for(const t of s.transactions)validateTransaction(t);if(new Set(s.transactions.map(t=>t.id)).size!==s.transactions.length)throw Error('Повторяющиеся операции');if(!s.settings||!Number.isFinite(Number(s.settings.savingsApr))||Number(s.settings.savingsApr)<0||Number(s.settings.savingsApr)>100)throw Error('Некорректная ставка');return true;}
+export function validateState(s){if(!s||!s.opening||!Number.isSafeInteger(s.opening.available)||!Number.isSafeInteger(s.opening.savings)||!Array.isArray(s.transactions)||!Array.isArray(s.rules)||!Array.isArray(s.oneOffs))throw Error('Неверная структура данных');if(s.opening.available<0||s.opening.savings<0)throw Error('Отрицательный стартовый баланс');for(const t of s.transactions)validateTransaction(t);if(new Set(s.transactions.map(t=>t.id)).size!==s.transactions.length)throw Error('Повторяющиеся операции');if(s.accounts){if(!Array.isArray(s.accounts)||new Set(s.accounts.map(a=>a.id)).size!==s.accounts.length||s.accounts.some(a=>!a.id||['main','savings'].includes(a.id)||!Number.isSafeInteger(a.opening)||a.opening<0))throw Error('Некорректные счета');accountBalances(s); }if(!s.settings||!Number.isFinite(Number(s.settings.savingsApr))||Number(s.settings.savingsApr)<0||Number(s.settings.savingsApr)>100)throw Error('Некорректная ставка');return true;}
 export function demo(today=dateISO()){const [y,m]=today.split('-').map(Number);const openingDay=dateISO(new Date(y,m-1,1,12));const day=+today.slice(-2);const transactions=[{id:'demo-income',date:openingDay,kind:'income',amount:1200000,category:'Доп. доход',note:'Демонстрационное поступление'},{id:'demo-expense',date:dateISO(new Date(y,m-1,Math.min(3,day),12)),kind:'expense',amount:145000,category:'Продукты',note:'Пример покупки'},{id:'demo-transfer',date:dateISO(new Date(y,m-1,Math.min(4,day),12)),kind:'transfer',direction:'toSavings',amount:500000,category:'Копилка',note:'Пример пополнения'}];return {schemaVersion:1,createdAt:new Date().toISOString(),opening:{available:3500000,savings:1000000},transactions,rules:[{id:'salary-7',type:'salary',title:'Зарплата · 7 число',day:7,amount:3300000,moveWeekends:true,category:'Зарплата'},{id:'salary-23',type:'salary',title:'Зарплата · 23 число',day:23,amount:3300000,moveWeekends:true,category:'Зарплата'},{id:'internet',type:'expense',title:'Интернет',day:12,amount:130000,category:'Связь'},{id:'subscription',type:'expense',title:'Подписки',day:20,amount:200000,category:'Подписки'}],oneOffs:[],settings:{savingsApr:0,demo:true}};}
 
 /* Salary-period planning. Monetary values are integer kopecks. */
