@@ -184,3 +184,13 @@ test('forecast month boundaries are complete dates and produce numeric balances'
   assert.ok(rows.every(r=>[r.available,r.savings,r.total,r.interest,r.daily].every(Number.isSafeInteger)));
  }
 });
+
+test('historical daily spend ignores goals, credit payments and savings moves',()=>{
+ const state={...blank(),opening:{available:10000000,savings:0},transactions:[
+  {id:'food',kind:'expense',date:'2026-11-17',amount:30000,category:'Еда'},
+  {id:'goal',kind:'expense',date:'2026-11-17',amount:600000,category:'Цель'},
+  {id:'credit',kind:'expense',date:'2026-11-17',amount:700000,category:'Кредиты'},
+  {id:'save',kind:'expense',date:'2026-11-17',amount:800000,category:'Копилка'}
+ ]};
+ assert.equal(financeForecast(state,'2026-11-18',1,'actual')[0].daily,1000);
+});
