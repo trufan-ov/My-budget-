@@ -1,4 +1,4 @@
-import {addDays,diffDays,balanceAt,futureOccurrences} from './core.mjs';
+import {addDays,diffDays,balanceAt,futureOccurrences,forecast} from './core.mjs';
 export const personalDraft = {
   asOf:'2026-11-18',opening:{available:346200,savings:750000},
   salary:3300000, dailyTarget:100000, savingsApr:11,
@@ -62,4 +62,20 @@ export function applyPersonalDraft(state){
  {id:'salary-7',type:'salary',title:'Зарплата · 7 число',day:7,amount:personalDraft.salary,moveWeekends:true,category:'Зарплата'},
  {id:'salary-23',type:'salary',title:'Зарплата · 23 число',day:23,amount:personalDraft.salary,moveWeekends:true,category:'Зарплата'}],
  settings:{...state.settings,savingsApr:11,planning:{...state.settings?.planning,dailyTarget:personalDraft.dailyTarget,savingsFixed:0,includeSavingsInDaily:false}}};
+}
+
+export function financeForecast(state,today,months=6){
+ const base=forecast(state,today,months);
+ const end=addDays(today,months*32);
+ const events=[...installmentEvents(state,addDays(today,1),end),...goalEvents(state,addDays(today,1),end)];
+ const completed=new Set(state.closedPlans||[]);
+ let cumulative=0;
+ return base.map(row=>{
+   const monthEvents=events.filter(e=>e.date.slice(0,7)===row.month&&!completed.has(e.id));
+   for(const e of monthEvents){
+     const paid=(state.transactions||[]).filter(t=>t.plannedId===e.id).reduce((a,t)=>a+t.amount,0);
+     cumulative+=Math.max(0,e.amount-paid);
+   }
+   return {...row,available:row.available-cumulative,total:row.total-cumulative};
+ });
 }
