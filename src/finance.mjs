@@ -1,4 +1,4 @@
-import {addDays,diffDays,balanceAt,futureOccurrences,forecast} from './core.mjs';
+import {addDays,diffDays,balanceAt,accountBalances,accountList,futureOccurrences,forecast} from './core.mjs';
 export const personalDraft = {
   asOf:'2026-11-18',opening:{available:346200,savings:750000},
   salary:3300000, dailyTarget:100000, savingsApr:11,
@@ -29,7 +29,8 @@ export function pendingEvents(state,start,end){
 export function dailyPlan(state,today,end){
  const balance=balanceAt(state,today),target=Math.max(0,state.settings?.planning?.dailyTarget??0);
  const days=Math.max(1,diffDays(today,addDays(end,1)));
- const opening=balance.available+(state.settings?.planning?.includeSavingsInDaily?balance.savings:0);
+ const balances=accountBalances(state,today);
+ const opening=accountList(state).filter(a=>a.includeInDaily||(a.id==='savings'&&state.settings?.planning?.includeSavingsInDaily)).reduce((sum,a)=>sum+(balances[a.id]||0),0);
  const pending=pendingEvents(state,today,end),byDate=new Map();
  for(const e of pending){const item=byDate.get(e.date)||{income:0,expense:0};item[e.kind==='income'?'income':'expense']+=e.remaining;byDate.set(e.date,item);}
  let running=opening,cap=Infinity,firstShortfall=null;
