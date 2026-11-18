@@ -66,3 +66,12 @@ h1,h2,h3{overflow-wrap:break-word;word-break:normal;hyphens:auto}
  .period-top h2{font-size:18px}
  .heading-row>.btn{font-size:11px;padding:8px}
 }
+
+/* Seven destinations in the iPhone bottom navigation */
+@media(max-width:700px){
+ .mobile-nav{grid-template-columns:repeat(7,minmax(0,1fr));padding-left:2px;padding-right:2px}
+ .mobile-nav button{font-size:9px;min-width:0;overflow:hidden;white-space:nowrap}
+ .mobile-nav .ico{font-size:18px}
+ .main{padding-bottom:calc(125px + env(safe-area-inset-bottom))}
+ .item select{max-width:100%;font-size:12px;background:#232328;color:#f5f5f7;border:1px solid #444;border-radius:6px;padding:5px}
+}
