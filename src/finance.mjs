@@ -19,6 +19,7 @@ export function pendingEvents(state,start,end){
  const actual=state.transactions||[];
  const from=state.settings?.planning?.startDate||start;
  const recurring=futureOccurrences(state,from<start?from:start,end,true).filter(e=>e.kind!=='income'||e.date>=start).map(e=>({...e,originalDate:e.date,date:e.date<start?start:e.date}));
+ const overdueOneOffs=(state.oneOffs||[]).filter(e=>e.date<start&&e.date<=end).map(e=>({...e,kind:e.kind||'expense',type:'oneOff',originalDate:e.date,date:start}));
  const debts=(state.debts||[]).filter(d=>d.type!=='lent').flatMap(d=>{
   if(Array.isArray(d.schedule)&&d.schedule.length){
    // Principal paid manually reduces upcoming scheduled principal instead of
@@ -40,7 +41,7 @@ export function pendingEvents(state,start,end){
   }
   return d.dueDate&&d.dueDate<=end?[{id:'debt-due:'+d.id,debtId:d.id,date:d.dueDate<start?start:d.dueDate,originalDate:d.dueDate,title:d.title,amount:d.principal,kind:'expense',type:'debt',category:'Кредиты'}]:[];
  });
- const all=[...recurring,...installmentEvents(state,start,end),...goalEvents(state,start,end),...debts];
+ const all=[...recurring,...overdueOneOffs,...installmentEvents(state,start,end),...goalEvents(state,start,end),...debts];
  return all.map(e=>{
    if(e.type==='debtSchedule')return {...e,remaining:(state.closedPlans||[]).includes(e.id)?0:e.remaining};
    const paid=actual.filter(t=>e.type==='debt'?t.debtId===e.debtId:t.plannedId===e.id).reduce((a,t)=>a+(e.type==='debt'?t.principal||0:t.amount),0);
