@@ -146,8 +146,11 @@ export function financeForecast(state,today,months=6,scenario='comfortable'){
      const goal=goalById.get(funded.id);
      const due=goal.date<start?start:goal.date;
      if(due.slice(0,7)!==month)continue;
-     if(funded.accountId==='savings')savings-=funded.funded;
-     else available-=funded.funded;
+     const futurePaid=futureGoalById.get(funded.id)||0;
+     const unfunded=goalFundingStatus(state,today).find(g=>g.id===funded.id)?.unfunded||0;
+     const remainingFunded=Math.max(0,funded.funded-Math.max(0,futurePaid-unfunded));
+     if(funded.accountId==='savings')savings-=remainingFunded;
+     else available-=remainingFunded;
    }
    const apr=Number(state.settings?.savingsApr??0);
    if(!Number.isFinite(apr)||apr<0||apr>100)throw Error('Некорректная ставка накоплений. Укажите значение от 0 до 100%');
