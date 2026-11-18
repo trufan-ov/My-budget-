@@ -19,7 +19,7 @@ export function pendingEvents(state,start,end){
  const actual=state.transactions||[];
  const from=state.settings?.planning?.startDate||start;
  const recurring=futureOccurrences(state,from<start?from:start,end,true).filter(e=>e.kind!=='income'||e.date>=start).map(e=>({...e,originalDate:e.date,date:e.date<start?start:e.date}));
- const overdueOneOffs=(state.oneOffs||[]).filter(e=>e.date<start&&e.date<=end).map(e=>({...e,kind:e.kind||'expense',type:'oneOff',originalDate:e.date,date:start}));
+ const overdueOneOffs=(state.oneOffs||[]).filter(e=>e.date<start&&e.date<=end&&(e.kind||'expense')==='expense').map(e=>({...e,kind:e.kind||'expense',type:'oneOff',originalDate:e.date,date:start}));
  const debts=(state.debts||[]).filter(d=>d.type!=='lent').flatMap(d=>{
   if(Array.isArray(d.schedule)&&d.schedule.length){
    // Principal paid manually reduces upcoming scheduled principal instead of
