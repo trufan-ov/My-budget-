@@ -119,3 +119,13 @@ test('planned savings transfer conserves projected net worth',()=>{
  assert.equal(projected[0].available,noRule[0].available-100000);
  assert.ok(projected[0].savings>=noRule[0].savings+100000);
 });
+
+test('historical forecast refuses to silently invent spending when no expense history exists',()=>{
+ const state={...blank(),transactions:[]};
+ assert.throws(()=>financeForecast(state,'2026-11-18',3,'actual'),/Недостаточно фактических расходов/);
+});
+test('historical forecast uses observed expenses when available',()=>{
+ const state={...blank(),transactions:[{id:'spent',kind:'expense',amount:30000,date:'2026-11-17',category:'Еда',note:''}],opening:{available:1000000,savings:0}};
+ const rows=financeForecast(state,'2026-11-18',3,'actual');
+ assert.equal(rows[0].daily,1000);
+});
