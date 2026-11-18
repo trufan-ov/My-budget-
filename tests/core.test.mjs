@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {demo,money,record,assertNoNewOverdraft,extraIncome,deleteTransaction,balanceAt,budgetSummary,salaryDate,forecast,futureOccurrences,validateState} from '../src/core.mjs';
+import {demo,money,record,assertNoNewOverdraft,extraIncome,deleteTransaction,balanceAt,budgetSummary,salaryDate,forecast,futureOccurrences,reviseRecurringRule,validateState} from '../src/core.mjs';
 const blank=()=>({...demo('2026-11-18'),opening:{available:2000000,savings:1000000},transactions:[],rules:[],oneOffs:[],settings:{savingsApr:0}});
 test('amounts in kopecks and input validation',()=>{assert.equal(money('12 000,45'),1200045);assert.throws(()=>money('10.001'));assert.throws(()=>money('-2'));});
 test('income distributed to savings conserves total',()=>{const s=blank(),next=extraIncome(s,{amount:1200000,toSavings:1000000,date:'2026-11-18'}),a=balanceAt(s),b=balanceAt(next);assert.equal(b.available-a.available,200000);assert.equal(b.savings-a.savings,1000000);assert.equal(b.total-a.total,1200000);});
@@ -41,4 +41,29 @@ test('existing statement overdrafts remain valid and can improve',()=>{
  assert.throws(()=>record(imported,{kind:'expense',amount:1,date:'2028-01-02'}),/Недостаточно/);
  const historical=record(imported,{kind:'expense',amount:50,date:'2027-12-31',historical:true});
  assert.deepEqual(balanceAt(historical),balanceAt(imported));
+});
+
+test('regular rule changes preserve posted and partial months and update the future',()=>{
+ const rule={id:'rent',type:'expense',title:'Rent',day:15,amount:1000,start:'2027-12-01'};
+ const prior={id:'partial',plannedId:'rent:2028-01',kind:'expense',date:'2027-12-30',amount:200};
+ const state={...blank(),rules:[rule],transactions:[prior]};
+ const updated=reviseRecurringRule(state,'rent',{title:'New rent',day:8,amount:1200},'2027-12-31');
+ validateState(updated);
+ assert.deepEqual(updated.transactions,[prior]);
+ assert.deepEqual(futureOccurrences(updated,'2027-12-01','2028-03-31',true).map(x=>[x.id,x.date,x.amount]),[
+  ['rent:2027-12','2027-12-15',1000],['rent:2028-01','2028-01-15',1000],
+  ['rent:2028-02','2028-02-08',1200],['rent:2028-03','2028-03-08',1200],
+ ]);
+ const revisedAgain=reviseRecurringRule(updated,'rent',{title:'Rent v3',day:9,amount:1250},'2027-12-31');
+ assert.equal(revisedAgain.rules[0].revisions.length,1);
+ assert.equal(futureOccurrences(revisedAgain,'2028-02-01','2028-02-29')[0].amount,1250);
+});
+
+test('regular rule edit is reflected in both obligation and forecast',async()=>{
+ const {pendingEvents,financeForecast}=await import('../src/finance.mjs');
+ const state={...blank(),rules:[{id:'rent',type:'expense',title:'Rent',day:10,amount:1000}]};
+ const next=reviseRecurringRule(state,'rent',{title:'Rent',day:10,amount:1200},'2027-12-31');
+ assert.equal(pendingEvents(next,'2028-01-01','2028-01-31')[0].remaining,1200);
+ const january=budget=>financeForecast(budget,'2027-12-31',3).find(row=>row.month==='2028-01').available;
+ assert.equal(january(state)-january(next),200);
 });

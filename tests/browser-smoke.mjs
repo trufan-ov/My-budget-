@@ -93,6 +93,21 @@ try{
   return {stored,restored:await load()};
  });
  assert.deepEqual(afterRestore.restored,afterRestore.stored);
+ await page.reload();
+ await page.locator('.mobile-nav [data-nav="plan"]').click();
+ await page.locator('[data-modal="rule"]').click();
+ await page.locator('[name="title"]').fill('Тестовое правило');
+ await page.locator('[name="amount"]').fill('200');
+ await page.locator('form[data-form="rule"] button[type="submit"]').click();
+ await page.locator('[data-rule-edit]').click();
+ await page.locator('[name="amount"]').fill('250');
+ await page.locator('form[data-form^="ruleedit:"] button[type="submit"]').click();
+ await page.getByText(/изменение с /).waitFor();
+ const revision=await page.evaluate(async()=>{
+  const {load}=await import('/src/storage.mjs');
+  return (await load()).rules.find(x=>x.title==='Тестовое правило').revisions[0];
+ });
+ assert.equal(revision.amount,25000);
  await page.waitForFunction(()=>Boolean(navigator.serviceWorker.controller));
  assert.equal(await page.evaluate(async()=>Boolean(await caches.match('/index.html'))),true);
  if(process.env.BROWSER!=='webkit'){
