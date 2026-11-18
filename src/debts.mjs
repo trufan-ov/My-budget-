@@ -30,3 +30,28 @@ export function netWorth(state,balances){
  },0);
  return assets+debts;
 }
+
+/**
+ * Indicative equal-payment schedule. Interest is estimated on the remaining
+ * principal; bank fees, changing rates and grace rules are not assumed.
+ * All money values are integer kopecks.
+ */
+export function repaymentSchedule({principal,apr=0,months,startDate}){
+ if(!Number.isSafeInteger(principal)||principal<=0||!Number.isInteger(months)||months<1||months>600||!Number.isFinite(apr)||apr<0||apr>100)throw Error('Некорректные параметры графика');
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(startDate)||!Number.isFinite(Date.parse(startDate+'T12:00:00Z')))throw Error('Некорректная дата графика');
+ const rate=apr/1200;
+ const payment=rate?Math.ceil(principal*rate/(1-Math.pow(1+rate,-months))):Math.ceil(principal/months);
+ let outstanding=principal;const rows=[];
+ for(let i=0;i<months;i++){
+  const interest=Math.round(outstanding*rate);
+  const principalPart=i===months-1?outstanding:Math.min(outstanding,Math.max(0,payment-interest));
+  if(principalPart===0)throw Error('Платёж не покрывает проценты');
+  outstanding-=principalPart;
+  const d=new Date(startDate+'T12:00:00Z'),day=d.getUTCDate();
+  d.setUTCDate(1);d.setUTCMonth(d.getUTCMonth()+i);
+  const last=new Date(Date.UTC(d.getUTCFullYear(),d.getUTCMonth()+1,0)).getUTCDate();
+  d.setUTCDate(Math.min(day,last));
+  rows.push({date:d.toISOString().slice(0,10),principal:principalPart,interest,amount:principalPart+interest,remaining:outstanding});
+ }
+ return rows;
+}
