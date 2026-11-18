@@ -11,7 +11,7 @@ export function addDebt(state,{title,type,principal,apr=0,dueDate='',creditLimit
  const debt={id:uid(),title:title.trim(),type,principal,apr,dueDate,creditLimit,graceUntil,createdAt:new Date().toISOString()};
  return {...state,debts:[...(state.debts||[]),debt]};
 }
-export function payDebt(state,id,{principal,interest=0,date,accountId='main'}){
+export function payDebt(state,id,{principal,interest=0,date,accountId='main',plannedId}){
  const debt=(state.debts||[]).find(d=>d.id===id);
  if(!debt)throw Error('Долг не найден');
  if(!Number.isSafeInteger(principal)||principal<0||!Number.isSafeInteger(interest)||interest<0||principal+interest<=0)throw Error('Некорректная сумма');
@@ -19,7 +19,7 @@ export function payDebt(state,id,{principal,interest=0,date,accountId='main'}){
  if(principal>outstanding)throw Error('Погашение превышает остаток долга');
  // Borrowed debt repayment is a cash outflow; lent debt repayment is a cash inflow.
  const kind=debt.type==='lent'?'income':'expense';
- const next=record(state,{kind,amount:principal+interest,date,accountId,category:'Долги',note:'Погашение: '+debt.title,debtId:id,principal,interest});
+ const next=record(state,{kind,amount:principal+interest,date,accountId,category:'Долги',note:'Погашение: '+debt.title,debtId:id,principal,interest,...(plannedId?{plannedId}:{})});
  return next;
 }
 export function netWorth(state,balances){
