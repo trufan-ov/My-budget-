@@ -37,7 +37,7 @@ test('undo imported batch only when all rows are unchanged',async()=>{
  const {bankImportSnapshot,safeImportUndo}=await import('../src/bank.mjs');
  const tx={id:'a',date:'2026-11-18',kind:'expense',amount:1200,accountId:'main',note:'Coffee',category:'Food'};
  const batch={id:'batch',ids:['a'],snapshots:[bankImportSnapshot(tx)]};
- const state={transactions:[tx],importBatches:[batch]};
+ const state={opening:{available:1200,savings:0},transactions:[tx],importBatches:[batch]};
  assert.equal(safeImportUndo(state,batch).transactions.length,0);
  assert.throws(()=>safeImportUndo({...state,transactions:[{...tx,amount:1500}]},batch),/изменены/);
  assert.throws(()=>safeImportUndo({...state,transactions:[tx,{id:'b',groupId:'a'}]},batch),/связанные/);
@@ -63,4 +63,14 @@ test('negative values in debit column remain expenses, not income',()=>{
 test('ambiguous statement row with both debit and credit is not imported',()=>{
  const rows=parseBankCSV('Дата;Списание;Зачисление;Описание\n18.11.2026;100;200;Ошибка\n19.11.2026;50;;Оплата');
  assert.deepEqual(rows.map(x=>[x.kind,x.amount]),[['expense',5000]]);
+});
+
+test('undo rejects removal of an imported deposit already spent',async()=>{
+ const {bankImportSnapshot,safeImportUndo}=await import('../src/bank.mjs');
+ const deposit={id:'deposit',date:'2028-02-29',kind:'income',amount:1200,accountId:'main'};
+ const expense={id:'expense',date:'2028-03-01',kind:'expense',amount:1200,accountId:'main'};
+ const batch={id:'batch',ids:['deposit'],snapshots:[bankImportSnapshot(deposit)]};
+ const state={opening:{available:0,savings:0},transactions:[deposit,expense],importBatches:[batch]};
+ assert.throws(()=>safeImportUndo(state,batch),/2028-03-01/);
+ assert.deepEqual(state.transactions,[deposit,expense]);
 });

@@ -14,22 +14,48 @@ export function accountList(state){
  const base=[{id:'main',name:'Основной счёт',opening:state.opening.available,includeInDaily:true},{id:'savings',name:'Копилка',opening:state.opening.savings,includeInDaily:false}];
  return [...base,...(state.accounts||[]).filter(a=>!['main','savings'].includes(a.id))];
 }
+function ledgerEntries(state,day='9999-12-31'){
+ return state.transactions.filter(t=>t.date<=day&&!t.historical&&(!state.openingDate||t.date>=state.openingDate))
+  .sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
+}
+function openingBalances(state){
+ return Object.assign(Object.create(null),Object.fromEntries(accountList(state).map(a=>[a.id,a.opening])));
+}
+function applyEntry(balances,tx){
+ validateTransaction(tx);
+ if(tx.kind==='transfer'){
+  const from=tx.fromAccount||(tx.direction==='fromSavings'?'savings':'main');
+  const to=tx.toAccount||(tx.direction==='fromSavings'?'main':'savings');
+  if(!(from in balances)||!(to in balances)||from===to)throw Error('Некорректные счета перевода');
+  balances[from]-=tx.amount;
+  balances[to]+=tx.amount;
+ }else{
+  const account=tx.accountId||(tx.kind==='interest'?'savings':'main');
+  if(!(account in balances))throw Error('Счёт операции не найден');
+  balances[account]+=tx.kind==='expense'?-tx.amount:tx.amount;
+ }
+}
 export function accountBalances(state,day='9999-12-31'){
- const balances=Object.fromEntries(accountList(state).map(a=>[a.id,a.opening]));
- for(const tx of state.transactions.filter(t=>t.date<=day&&!t.historical&&(!state.openingDate||t.date>=state.openingDate)).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id))){
-  validateTransaction(tx);
-  if(tx.kind==='transfer'){
-   const from=tx.fromAccount|| (tx.direction==='fromSavings'?'savings':'main');
-   const to=tx.toAccount|| (tx.direction==='fromSavings'?'main':'savings');
-   if(!(from in balances)||!(to in balances)||from===to)throw Error('Некорректные счета перевода');
-   balances[from]-=tx.amount;balances[to]+=tx.amount;
-  }else{
-   const id=tx.accountId||(tx.kind==='interest'?'savings':'main');
-   if(!(id in balances))throw Error('Счёт операции не найден');
-   balances[id]+=tx.kind==='expense'?-tx.amount:tx.amount;
+ const balances=openingBalances(state);
+ for(const tx of ledgerEntries(state,day))applyEntry(balances,tx);
+ return {...balances};
+}
+
+export function assertNoNewOverdraft(previous,next){
+ const oldEntries=ledgerEntries(previous),newEntries=ledgerEntries(next);
+ const oldBalances=openingBalances(previous),newBalances=openingBalances(next);
+ const days=[...new Set([...oldEntries,...newEntries].map(t=>t.date))].sort();
+ const accounts=accountList(next);
+ let oldIndex=0,newIndex=0;
+ for(const day of days){
+  while(oldEntries[oldIndex]?.date===day)applyEntry(oldBalances,oldEntries[oldIndex++]);
+  while(newEntries[newIndex]?.date===day)applyEntry(newBalances,newEntries[newIndex++]);
+  for(const {id,name} of accounts){
+   if(newBalances[id]<Math.min(0,oldBalances[id]??0)){
+    throw Error('Недостаточно средств на счёте «'+name+'» на '+day);
+   }
   }
  }
- return balances;
 }
 export function balanceAt(state,day='9999-12-31'){
  const accounts=accountBalances(state,day);
@@ -42,19 +68,13 @@ export function record(state,transaction,options={}){
  validateTransaction(tx);
  if(state.transactions.some(t=>t.id===tx.id))throw Error('Дублирующийся идентификатор операции');
  if(state.openingDate&&tx.date<state.openingDate&&!tx.historical)throw Error('Операция раньше даты начальных остатков: импортируй её как историческую');
- const before=accountBalances(state,tx.date);
- const from=tx.fromAccount||(tx.direction==='fromSavings'?'savings':'main');
- const account=tx.accountId||(tx.kind==='interest'?'savings':'main');
- if(!options.allowNegative&&!tx.historical){
-  if(tx.kind==='expense'&&(before[account]??-1)<tx.amount)throw Error('Недостаточно средств на выбранном счёте');
-  if(tx.kind==='transfer'&&(before[from]??-1)<tx.amount)throw Error('Недостаточно средств для перевода');
- }
  const next={...state,transactions:[...state.transactions,tx]};
- accountBalances(next,tx.date);
+ if(options.allowNegative||tx.historical)accountBalances(next,tx.date);
+ else assertNoNewOverdraft(state,next);
  return next;
 }
 export function extraIncome(state,{amount,toSavings=0,date=dateISO(),note='Дополнительный доход'}){if(!Number.isSafeInteger(toSavings)||toSavings<0||toSavings>amount)throw Error('В копилку нельзя направить больше дохода');let next=record(state,{kind:'income',amount,date,category:'Доп. доход',note});if(toSavings)next=record(next,{kind:'transfer',direction:'toSavings',amount:toSavings,date,category:'Копилка',note:'Из дополнительного дохода',groupId:next.transactions.at(-1).id});return next;}
-export function deleteTransaction(state,id){const found=state.transactions.find(t=>t.id===id);if(!found)return state;const ids=new Set([id]);if(found.kind==='income')for(const tx of state.transactions)if(tx.groupId===id)ids.add(tx.id);if(found.groupId)ids.add(found.groupId);const next={...state,transactions:state.transactions.filter(t=>!ids.has(t.id))};return next;}
+export function deleteTransaction(state,id){const found=state.transactions.find(t=>t.id===id);if(!found)return state;const ids=new Set([id]);if(found.kind==='income')for(const tx of state.transactions)if(tx.groupId===id)ids.add(tx.id);if(found.groupId)ids.add(found.groupId);const next={...state,transactions:state.transactions.filter(t=>!ids.has(t.id))};assertNoNewOverdraft(state,next);return next;}
 export function futureOccurrences(state,start,end,includeCompleted=false){const out=[];for(const rule of state.rules){if(rule.enabled===false)continue;const s=parseDate(start), e=parseDate(end);for(let year=s.getFullYear()-1;year<=e.getFullYear()+1;year++)for(let month=1;month<=12;month++){
 let occurrence=rule.type==='salary'?salaryDate(year,month,rule.day,rule.moveWeekends!==false):dateISO(new Date(year,month-1,Math.min(rule.day,new Date(year,month,0).getDate()),12));
 if(occurrence<start||occurrence>end||(rule.start&&occurrence<rule.start)||(rule.end&&occurrence>rule.end))continue;
