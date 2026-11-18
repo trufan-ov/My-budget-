@@ -63,8 +63,27 @@ function outstandingDebtEvents(d,payments,start,end){
 
 export function pendingEvents(state,start,end,asOf=start){
  const actual=(state.transactions||[]).filter(t=>!t.historical&&(!state.openingDate||t.date>=state.openingDate));
- const from=state.settings?.planning?.startDate||asOf;
- const recurring=futureOccurrences({...state,oneOffs:[]},from<start?from:start,end,true).filter(e=>e.kind!=='income'||e.date>=start).map(e=>({...e,originalDate:e.date,date:e.date<start?start:e.date}));
+ const plannedStart=state.settings?.planning?.startDate;
+ const bookedMonths=new Map();
+ for(const tx of actual){
+  if(!tx.plannedId||tx.kind!=='expense')continue;
+  const parts=/^(.*):(\d{4}-(?:0[1-9]|1[0-2]))$/.exec(tx.plannedId);
+  if(!parts)continue;
+  const months=bookedMonths.get(parts[1])||new Set();
+  months.add(parts[2]);
+  bookedMonths.set(parts[1],months);
+ }
+ const recurring=state.rules.flatMap(rule=>{
+  const knownMonths=bookedMonths.get(rule.id);
+  const earliestBooked=knownMonths?[...knownMonths].sort()[0]+'-01':start;
+  const configured=rule.start||plannedStart;
+  const from=[start,asOf,configured||start,earliestBooked].sort()[0];
+  return futureOccurrences({...state,rules:[rule],oneOffs:[]},from,end,true)
+   .filter(event=>event.date>=start||(event.kind==='expense'&&(
+    event.date>=asOf||Boolean(configured&&event.date>=configured)||knownMonths?.has(event.date.slice(0,7))
+   )))
+   .map(event=>({...event,originalDate:event.date,date:event.date<start?start:event.date}));
+ });
  const oneOffs=(state.oneOffs||[]).filter(e=>e.date<=end&&(e.date>=start||(e.kind||'expense')==='expense')).map(e=>({...e,kind:e.kind||'expense',type:'oneOff',originalDate:e.date,date:e.date<start?start:e.date}));
  const debts=(state.debts||[]).filter(d=>d.type!=='lent').flatMap(d=>outstandingDebtEvents(d,actual.filter(t=>t.debtId===d.id),start,end));
  const all=[...recurring,...oneOffs,...installmentEvents(state,start,end),...goalEvents(state,start,end,asOf),...debts];
@@ -73,7 +92,7 @@ export function pendingEvents(state,start,end,asOf=start){
    const paid=e.type==='goal'?0:actual.filter(t=>t.plannedId===e.id).reduce((a,t)=>a+t.amount,0);
    const closed=(state.closedPlans||[]).includes(e.id);
    return {...e,paid,remaining:closed?0:Math.max(0,e.amount-paid)};
- }).filter(e=>e.remaining>0);
+ }).filter(e=>e.remaining>0).sort((a,b)=>a.date.localeCompare(b.date)||(a.originalDate||a.date).localeCompare(b.originalDate||b.date)||a.id.localeCompare(b.id));
 }
 
 function projectedBills(state,today,start,end){

@@ -590,3 +590,14 @@ test('future repayment of an unscheduled debt cannot hide its overdue shortfall'
  }
  assert.equal(plan.free,-8100);
 });
+
+test('overdue recurring bills survive the due day without inventing arrears for undated legacy rules',()=>{
+ const state={...blank(),opening:{available:50000,savings:0},rules:[
+  {id:'known',type:'expense',day:10,amount:3000,start:'2027-12-01'},
+  {id:'legacy',type:'expense',day:15,amount:4000},
+  {id:'other',type:'expense',day:8,amount:1000}],
+  transactions:[{id:'part',plannedId:'legacy:2027-12',kind:'expense',date:'2027-12-20',amount:1500}]};
+ const events=pendingEvents(state,'2028-01-02','2028-01-05');
+ assert.deepEqual(events.map(e=>[e.id,e.remaining]),[['known:2027-12',3000],['legacy:2027-12',2500]]);
+ assert.equal(dailyPlan(state,'2028-01-02','2028-01-05').free,43000);
+});
