@@ -9,6 +9,10 @@ page.on('dialog',async dialog=>dialog.accept());
 try{
  await page.goto('http://localhost:4173/',{waitUntil:'networkidle'});
  assert.equal(await page.locator('.mobile-nav button').count(),4);
+ const week=page.getByRole('button',{name:'7 дн.',exact:true});
+ await week.click();
+ assert.equal(await week.getAttribute('aria-pressed'),'true');
+ await page.locator('.balance-plot svg').waitFor();
  await page.waitForFunction(()=>Boolean(navigator.serviceWorker.controller));
  assert.equal(await page.evaluate(async()=>Boolean(await caches.match('/index.html'))),true);
  if(process.env.BROWSER!=='webkit'){

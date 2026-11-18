@@ -83,3 +83,87 @@ h1,h2,h3{overflow-wrap:break-word;word-break:normal;hyphens:auto}
  .more-chevron{font-size:27px;color:#8d8d95}
  .item select{max-width:100%;font-size:12px;background:#232328;color:#f5f5f7;border:1px solid #444;border-radius:6px;padding:5px}
 }
+
+/* Graphite dashboard */
+:root {
+  --canvas: #101113;
+  --surface: #191a1d;
+  --surface-raised: #202125;
+  --border: #343539;
+  --ink: #fafafa;
+  --secondary: #afb0b5;
+  --blue: #233e78;
+  --blue-edge: #526fa7;
+  background: var(--canvas);
+  color: var(--ink);
+}
+body { background: var(--canvas); }
+.sidebar { background: #131416; border-color: #2a2b2e; }
+.brand-symbol { background: var(--ink); color: var(--canvas); }
+.nav button.active, .mobile-nav button.active { background: #202c42; color: var(--ink); }
+.nav button.active .nav-icon, .mobile-nav button.active .ico { color: white; }
+.nav button.active { box-shadow: inset 3px 0 var(--blue-edge); }
+.mobile-nav { background: #17181bf5; border-color: var(--border); }
+.eyebrow, .top-date, .balance-label, .balance-caption, .insight-label, .insight-detail,
+.item .sub, .chart-label, .local-dot { color: var(--secondary); }
+.topline { margin-bottom: 28px; }
+.dashboard-overview { display: grid; grid-template-columns: minmax(0, .95fr) minmax(0, 1.1fr); gap: 14px; }
+.balance-section, .history-panel, .insights .insight, .home-columns .content-section,
+.card, .cycle-panel, .modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+}
+.balance-section, .history-panel { min-width: 0; padding: clamp(18px, 2vw, 28px); }
+.balance-section { display: flex; flex-direction: column; background: linear-gradient(120deg,#242528,var(--surface) 72%); }
+.balance-value { font-size: clamp(36px, 4.6vw, 64px); letter-spacing: -.055em; }
+.balance-caption { margin: 10px 0 20px; }
+.primary-actions { margin-top: auto; gap: 6px; flex-wrap: wrap; }
+.quick-action { border-radius: 9px; padding: 10px 11px; min-height: 44px; min-width: 0; font-size: 13px; }
+.quick-action span { margin-right: 2px; }
+.quick-main, .btn.primary { background: var(--ink); color: #151618; border-color: var(--ink); }
+.plot-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.plot-heading h2 { font-size: 16px; font-weight: 600; margin: 0; letter-spacing: -.02em; }
+.plot-periods { display: inline-flex; padding: 3px; border-radius: 8px; background: #111214; }
+.plot-periods button { border: 0; border-radius: 5px; background: transparent; color: var(--secondary); padding: 6px 8px; font-size: 12px; }
+.plot-periods button[aria-pressed="true"], .tabs button.active { background: var(--blue); color: white; border-color: var(--blue-edge); }
+.balance-plot { display: grid; grid-template-columns: max-content minmax(0,1fr); gap: 8px 10px; margin: 21px 0 0; }
+.plot-scale, .balance-plot figcaption { display: flex; justify-content: space-between; color: var(--secondary); font-size: 11px; font-variant-numeric: tabular-nums; }
+.plot-scale { flex-direction: column; }
+.plot-scale:has(:only-child) { justify-content: center; }
+.balance-plot svg { width: 100%; height: 126px; background: repeating-linear-gradient(to top, #323337 0 1px, transparent 1px 33.33%); }
+.balance-plot figcaption { grid-column: 2; }
+.insights { padding: 0; margin-top: 14px; gap: 14px; border: 0; }
+.insights .insight { padding: 19px 20px; }
+.insight-link, .text-link { color: #dcdee3; }
+.home-columns { margin-top: 14px; gap: 14px; }
+.home-columns .content-section { padding: 20px; }
+.home-columns .item { flex-wrap: wrap; }
+.home-columns .item-end { margin-left: auto; }
+.card.hero, .field input, .field select, .field textarea { background: var(--surface-raised); }
+.chart-stick, .bar>div { background: linear-gradient(to top,#1c315c,#355690); border-top: 1px solid var(--blue-edge); }
+.current-period.period-panel { border-top-color: var(--blue-edge); }
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid #dbe5ff; }
+@media (min-width: 1100px) {
+  .main { padding-left: clamp(30px,3.2vw,56px); padding-right: clamp(30px,3.2vw,56px); }
+}
+@media (max-width: 1100px) and (min-width: 701px) {
+  .dashboard-overview, .home-columns { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  .main { padding-left: 14px; padding-right: 14px; }
+  .topline { margin-bottom: 20px; }
+  .dashboard-overview { grid-template-columns: minmax(0,1fr); gap: 10px; }
+  .balance-section, .history-panel, .home-columns .content-section { padding: 17px; }
+  .balance-value { font-size: clamp(36px,10.5vw,54px); }
+  .balance-caption { margin-bottom: 18px; }
+  .primary-actions { flex-wrap: nowrap; }
+  .quick-action { padding: 9px 3px; }
+  .balance-plot { margin-top: 14px; }
+  .balance-plot svg { height: 94px; }
+  .plot-periods button { min-height: 32px; }
+  .insights, .home-columns { margin-top: 10px; gap: 10px; }
+  .insights .insight { padding: 15px; }
+  .insight:nth-child(3) { grid-column: 1 / -1; }
+  .home-columns { grid-template-columns: minmax(0,1fr); }
+}
