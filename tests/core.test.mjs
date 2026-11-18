@@ -79,3 +79,15 @@ test('salary-period budget keeps unpaid portion after an actual partial expense'
  assert.equal(period.obligations,6000);
  assert.equal(period.projected,40000);
 });
+
+test('home chart matches daily available balance and starts at the known opening',async()=>{
+ const {availableHistory}=await import('../src/core.mjs');
+ const state={...blank(),openingDate:'2028-02-28',transactions:[
+  {id:'pay',kind:'expense',amount:150,date:'2028-02-29'},
+  {id:'save',kind:'transfer',direction:'toSavings',amount:500,date:'2028-03-01'},
+  {id:'archive',kind:'income',amount:10000,date:'2028-02-28',historical:true},
+ ]};
+ const points=availableHistory(state,'2028-03-01',7);
+ assert.deepEqual(points.map(p=>p.day),['2028-02-28','2028-02-29','2028-03-01']);
+ assert.deepEqual(points.map(p=>p.available),points.map(p=>balanceAt(state,p.day).available));
+});

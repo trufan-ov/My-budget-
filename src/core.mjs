@@ -57,6 +57,23 @@ export function assertNoNewOverdraft(previous,next){
   }
  }
 }
+export function availableHistory(state,through,days){
+ const entries=ledgerEntries(state,through);
+ const first=state.openingDate||entries[0]?.date;
+ if(!first||first>through)return [];
+ const windowStart=addDays(through,1-days);
+ const start=first>windowStart?first:windowStart;
+ const balances=openingBalances(state);
+ const points=[];
+ let index=0;
+ for(let day=start;day<=through;day=addDays(day,1)){
+  while(index<entries.length&&entries[index].date<=day)applyEntry(balances,entries[index++]);
+  const available=Object.entries(balances).reduce((sum,[id,value])=>sum+(id==='savings'?0:value),0);
+  points.push({day,available});
+ }
+ return points;
+}
+
 export function balanceAt(state,day='9999-12-31'){
  const accounts=accountBalances(state,day);
  const available=Object.entries(accounts).filter(([id])=>id!=='savings').reduce((n,[,v])=>n+v,0);
