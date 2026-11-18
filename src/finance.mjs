@@ -17,7 +17,8 @@ export function goalEvents(state,start,end){
 }
 export function pendingEvents(state,start,end){
  const actual=state.transactions||[];
- const all=[...futureOccurrences(state,start,end),...installmentEvents(state,start,end),...goalEvents(state,start,end)];
+ const from=state.settings?.planning?.startDate||start;
+ const all=[...futureOccurrences(state,from<start?from:start,end,true).map(e=>({...e,originalDate:e.date,date:e.date<start?start:e.date})),...installmentEvents(state,start,end),...goalEvents(state,start,end)];
  return all.map(e=>{
    const paid=actual.filter(t=>t.plannedId===e.id).reduce((a,t)=>a+t.amount,0);
    const closed=(state.closedPlans||[]).includes(e.id);
@@ -61,7 +62,7 @@ export function applyPersonalDraft(state){
  return {...state,opening:{...personalDraft.opening},goals:personalDraft.goals.map(g=>({...g})),installments:personalDraft.installments.map(x=>({...x,payments:x.payments.map(p=>({...p}))})),rules:[
  {id:'salary-7',type:'salary',title:'Зарплата · 7 число',day:7,amount:personalDraft.salary,moveWeekends:true,category:'Зарплата'},
  {id:'salary-23',type:'salary',title:'Зарплата · 23 число',day:23,amount:personalDraft.salary,moveWeekends:true,category:'Зарплата'}],
- settings:{...state.settings,savingsApr:11,planning:{...state.settings?.planning,dailyTarget:personalDraft.dailyTarget,savingsFixed:0,includeSavingsInDaily:false}}};
+ settings:{...state.settings,savingsApr:11,planning:{...state.settings?.planning,dailyTarget:personalDraft.dailyTarget,savingsFixed:0,includeSavingsInDaily:false,startDate:personalDraft.asOf}}};
 }
 
 export function financeForecast(state,today,months=6){
