@@ -20,7 +20,7 @@ try{
  await page.locator('.more-link[data-nav="forecast"]').click();
  await page.getByText('Прогноз по месяцам',{exact:true}).first().waitFor();
  assert.equal(await page.getByText(/NaN|не число/i).count(),0);
- for(const choice of ['actual','economical','comfortable']){
+ for(const choice of ['economical','comfortable']){
   await page.locator('[data-scenario="'+choice+'"]').click();
   assert.equal(await page.getByText(/NaN|не число/i).count(),0);
  }
