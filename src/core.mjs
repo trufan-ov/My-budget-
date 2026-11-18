@@ -33,3 +33,29 @@ sorted.push({month:start.slice(0,7),available:projected.available,savings:projec
 return sorted;}
 export function validateState(s){if(!s||!s.opening||!Number.isSafeInteger(s.opening.available)||!Number.isSafeInteger(s.opening.savings)||!Array.isArray(s.transactions)||!Array.isArray(s.rules)||!Array.isArray(s.oneOffs))throw Error('Неверная структура данных');if(s.opening.available<0||s.opening.savings<0)throw Error('Отрицательный стартовый баланс');for(const t of s.transactions)validateTransaction(t);if(new Set(s.transactions.map(t=>t.id)).size!==s.transactions.length)throw Error('Повторяющиеся операции');if(!s.settings||!Number.isFinite(Number(s.settings.savingsApr))||Number(s.settings.savingsApr)<0||Number(s.settings.savingsApr)>100)throw Error('Некорректная ставка');return true;}
 export function demo(today=dateISO()){const [y,m]=today.split('-').map(Number);const openingDay=dateISO(new Date(y,m-1,1,12));const day=+today.slice(-2);const transactions=[{id:'demo-income',date:openingDay,kind:'income',amount:1200000,category:'Доп. доход',note:'Демонстрационное поступление'},{id:'demo-expense',date:dateISO(new Date(y,m-1,Math.min(3,day),12)),kind:'expense',amount:145000,category:'Продукты',note:'Пример покупки'},{id:'demo-transfer',date:dateISO(new Date(y,m-1,Math.min(4,day),12)),kind:'transfer',direction:'toSavings',amount:500000,category:'Копилка',note:'Пример пополнения'}];return {schemaVersion:1,createdAt:new Date().toISOString(),opening:{available:3500000,savings:1000000},transactions,rules:[{id:'salary-7',type:'salary',title:'Зарплата · 7 число',day:7,amount:3300000,moveWeekends:true,category:'Зарплата'},{id:'salary-23',type:'salary',title:'Зарплата · 23 число',day:23,amount:3300000,moveWeekends:true,category:'Зарплата'},{id:'internet',type:'expense',title:'Интернет',day:12,amount:130000,category:'Связь'},{id:'subscription',type:'expense',title:'Подписки',day:20,amount:200000,category:'Подписки'}],oneOffs:[],settings:{savingsApr:0,demo:true}};}
+
+/* Salary-period planning. Monetary values are integer kopecks. */
+export function salarySettings(state){return {comfortDaily:0,fixedSavings:0,...(state.settings?.planning||{})};}
+export function salaryPeriods(state,today=dateISO(),count=4){
+ const salaries=state.rules.filter(r=>r.type==='salary'&&r.enabled!==false);
+ const base=parseDate(today),events=[];
+ for(let shift=-2;shift<=5;shift++){const d=new Date(base.getFullYear(),base.getMonth()+shift,1,12);for(const r of salaries){const date=salaryDate(d.getFullYear(),d.getMonth()+1,r.day,r.moveWeekends!==false);events.push({date,rule:r,id:`${r.id}:${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`});}}
+ events.sort((a,b)=>a.date.localeCompare(b.date));const unique=events.filter((e,i)=>!i||e.date!==events[i-1].date);
+ const idx=Math.max(0,unique.findIndex((e,i)=>e.date<=today&&(!unique[i+1]||unique[i+1].date>today)));
+ return unique.slice(idx,idx+count).map((start,i)=>{const end=unique[idx+i+1];if(!end)return null;const from=start.date,to=end.date;const current=from<=today&&today<to;const periodStart=current?today:from;
+ const balance=balanceAt(state,current?today:addDays(from,-1));
+ const salaryTx=state.transactions.find(t=>t.plannedId===start.id);
+ const expectedSalary=start.rule.amount;const salaryAmount=salaryTx?.amount??expectedSalary;
+ const future=futureOccurrences(state,periodStart,addDays(to,-1));
+ const obligations=future.filter(e=>e.kind==='expense').reduce((sum,e)=>sum+e.amount,0);
+ const otherIncome=future.filter(e=>e.kind==='income'&&e.id!==start.id).reduce((sum,e)=>sum+e.amount,0);
+ const income=current?0:salaryAmount+otherIncome;
+ const days=Math.max(1,diffDays(periodStart,to));
+ const fixedSavings=salarySettings(state).fixedSavings;
+ const projected=balance.available+income-obligations-fixedSavings;
+ const availableDaily=Math.max(0,Math.floor(projected/days));
+ const comfort=salarySettings(state).comfortDaily;
+ const deficit=Math.max(0,comfort*days-projected);
+ return {from,to,current,days,expectedSalary,salaryAmount,salaryConfirmed:!!salaryTx,opening:balance.available,income,obligations,fixedSavings,projected,availableDaily,comfort,deficit,periodId:start.id,ruleId:start.rule.id};
+ }).filter(Boolean);
+}
