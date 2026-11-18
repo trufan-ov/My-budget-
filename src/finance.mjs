@@ -53,7 +53,7 @@ export function financeForecast(state,today,months=6,scenario='comfortable'){
  const monthStart=(n)=>{const d=new Date(first.getFullYear(),first.getMonth()+n,1,12);return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0')].join('-');};
  const end=monthStart(months)+'-01';
  const events=pendingEvents(state,start,end),byMonth=new Map();
- for(const e of events){const month=e.date.slice(0,7),p=byMonth.get(month)||{income:0,expense:0};p[e.kind==='income'?'income':'expense']+=e.remaining;byMonth.set(month,p);}
+ for(const e of events){const month=e.date.slice(0,7),p=byMonth.get(month)||{income:0,expense:0,savings:0};p[e.kind==='income'?'income':'expense']+=e.remaining;if(e.type==='savings')p.savings+=e.remaining;byMonth.set(month,p);}
  let available=initial.available,savings=initial.savings;
  const target=state.settings?.planning?.dailyTarget??0;
  const recent=(state.transactions||[]).filter(t=>t.kind==='expense'&&!t.plannedId&&t.date>=addDays(today,-30)&&t.date<=today);
