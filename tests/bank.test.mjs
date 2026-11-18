@@ -27,3 +27,8 @@ test('skip classification is excluded from bank import',()=>{
 test('invalid calendar dates and zero amounts are excluded',()=>{
  assert.throws(()=>parseBankCSV('Дата;Сумма;Описание\n31.02.2026;-10;bad\n19.11.2026;0;zero'));
 });
+
+test('same bank operation on a different account is not considered a duplicate',()=>{
+ const tx={kind:'expense',date:'2026-11-18',amount:10000,note:'Кофе',accountId:'main'};
+ assert.equal(unmatchedStatementRows([{...tx,accountId:'cash'}],[tx]).length,1);
+});
