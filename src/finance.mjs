@@ -60,9 +60,9 @@ export function dailyPlan(state,today,end){
  return {available:Math.max(0,running),free:running,deficit:Math.max(0,-running),daily:Math.max(0,Math.min(target,cap)),maximumDaily:Math.max(0,cap),days,firstShortfall,pending};
 }
 export function applyPersonalDraft(state,{replaceDemo=false}={}){
- const hasExisting=state.transactions.length||state.oneOffs.length||state.installments?.length||state.goals?.length||state.rules.length;
+ const hasExisting=state.transactions.length||state.oneOffs.length||state.installments?.length||state.goals?.length||state.rules.length||state.debts?.length||state.accounts?.length||state.importBatches?.length;
  if(hasExisting&&!(replaceDemo&&state.settings?.demo===true))throw Error('В бюджете уже есть данные. Для защиты от потери операций импорт черновика разрешён только в пустой или демонстрационный бюджет.');
- return {...state,transactions:[],oneOffs:[],closedPlans:[],opening:{...personalDraft.opening},goals:personalDraft.goals.map(g=>({...g})),installments:personalDraft.installments.map(x=>({...x,payments:x.payments.map(p=>({...p}))})),rules:[
+ return {...state,transactions:[],oneOffs:[],closedPlans:[],debts:[],accounts:[],importBatches:[],opening:{...personalDraft.opening},goals:personalDraft.goals.map(g=>({...g})),installments:personalDraft.installments.map(x=>({...x,payments:x.payments.map(p=>({...p}))})),rules:[
  {id:'salary-7',type:'salary',title:'Зарплата · 7 число',day:7,amount:personalDraft.salary,moveWeekends:true,category:'Зарплата'},
  {id:'salary-23',type:'salary',title:'Зарплата · 23 число',day:23,amount:personalDraft.salary,moveWeekends:true,category:'Зарплата'}],
  openingDate:personalDraft.asOf,undatedObligations:[{id:'chatgpt',title:'ChatGPT',amount:230000,period:'monthly'},{id:'other-subscriptions',title:'Другие подписки',amount:100000,period:'monthly'}],settings:{...state.settings,demo:false,savingsApr:11,planning:{...state.settings?.planning,dailyTarget:personalDraft.dailyTarget,savingsFixed:0,includeSavingsInDaily:false,startDate:personalDraft.asOf}}};
