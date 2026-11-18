@@ -1,0 +1,23 @@
+import {chromium} from 'playwright';
+import assert from 'node:assert/strict';
+const browser=await chromium.launch({headless:true});
+const page=await browser.newPage({viewport:{width:390,height:844}});
+const errors=[];
+page.on('pageerror',e=>errors.push(e.message));
+page.on('dialog',async dialog=>dialog.accept());
+try{
+ await page.goto('http://127.0.0.1:4173/',{waitUntil:'networkidle'});
+ await page.locator('[data-nav="settings"]').first().click();
+ await page.locator('[data-personal-seed]').click();
+ await page.locator('[data-nav="plan"]').first().click();
+ await page.getByText('Мальчишник',{exact:true}).first().waitFor();
+ await page.getByText('Свадьба Матвея',{exact:true}).first().waitFor();
+ assert.equal(await page.locator('[data-plan-pay]').count(),12);
+ await page.locator('[data-nav="settings"]').first().click();
+ await page.getByText('ChatGPT',{exact:true}).first().waitFor();
+ await page.reload({waitUntil:'networkidle'});
+ await page.locator('[data-nav="plan"]').first().click();
+ await page.getByText('Мальчишник',{exact:true}).first().waitFor();
+ assert.deepEqual(errors,[]);
+ console.log('PASS: iPhone-size personal draft click, goals, 10 installments, subscriptions, persistence, no JS errors');
+}finally{await browser.close();}
