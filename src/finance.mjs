@@ -80,7 +80,7 @@ export function dailyPlan(state,today,end){
  const earmarked=[...funding.values()].filter(g=>included.has(g.accountId)).reduce((sum,g)=>sum+g.funded,0);
  // Future-dated legacy goal transactions are absent from today's real balance.
  // Consume earmarked money first when payment comes from its reserve account.
- const future=(state.transactions||[]).filter(t=>t.kind==='expense'&&t.plannedId&&funding.has(t.plannedId)&&t.date>today&&t.date<=end&&!t.historical).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
+ const future=(state.transactions||[]).filter(t=>t.kind==='expense'&&t.plannedId&&funding.has(t.plannedId)&&t.date>today&&t.date<=end&&!t.historical&&(!state.openingDate||t.date>=state.openingDate)).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));
  const consumed=new Map(),paidByGoal=new Map();
  for(const t of future){
    const goal=funding.get(t.plannedId),prior=consumed.get(t.plannedId)||0;
