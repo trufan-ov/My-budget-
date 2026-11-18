@@ -94,7 +94,9 @@ export function financeForecast(state,today,months=6,scenario='comfortable'){
    const p=byMonth.get(month)||{income:0,expense:0,savings:0};
    available+=p.income-p.expense-daily*days;
    savings+=p.savings;
-   const interest=Math.max(0,Math.round(Math.max(0,savings)*Number(state.settings?.savingsApr||0)/1200));
+   const apr=Number(state.settings?.savingsApr??0);
+   if(!Number.isFinite(apr)||apr<0||apr>100)throw Error('Некорректная ставка накоплений. Укажите значение от 0 до 100%');
+   const interest=Math.max(0,Math.round(Math.max(0,savings)*apr/1200));
    savings+=interest;
    if(!Number.isSafeInteger(available)||!Number.isSafeInteger(savings)||!Number.isSafeInteger(interest))throw Error('Прогноз содержит некорректные суммы. Проверьте операции, счета и параметры бюджета');
    rows.push({month,available,savings,total:available+savings,interest,events:events.filter(e=>e.date.slice(0,7)===month).length,daily});
