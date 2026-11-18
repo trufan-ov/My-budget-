@@ -496,3 +496,20 @@ test('future partial payment after goal deadline is not charged twice by daily b
  const state=record(base,{kind:'expense',accountId:'main',amount:100000,date:'2026-11-25',plannedId:'trip',category:'Цель'});
  assert.equal(dailyPlan(state,'2026-11-18','2026-11-30').free,500000);
 });
+
+test('late future goal payment does not inflate forecast before payment month',()=>{
+ const base={...blank(),opening:{available:1000000,savings:0},goals:[{id:'late',title:'Late',date:'2026-11-20',amount:500000,funded:0}]};
+ const state=record(base,{kind:'expense',accountId:'main',amount:200000,date:'2026-12-10',plannedId:'late',category:'Цель'});
+ const rows=financeForecast(state,'2026-11-18',3);
+ assert.equal(rows[0].available,500000);
+ assert.equal(rows[1].available,500000);
+});
+test('multiple late future goal payments do not advance credits to due month',()=>{
+ const base={...blank(),opening:{available:1000000,savings:0},goals:[{id:'late',title:'Late',date:'2026-11-20',amount:500000,funded:0}]};
+ let state=record(base,{kind:'expense',accountId:'main',amount:100000,date:'2026-12-10',plannedId:'late',category:'Цель'});
+ state=record(state,{kind:'expense',accountId:'main',amount:150000,date:'2027-01-10',plannedId:'late',category:'Цель'});
+ const rows=financeForecast(state,'2026-11-18',4);
+ assert.equal(rows[0].available,500000);
+ assert.equal(rows[1].available,500000);
+ assert.equal(rows[2].available,500000);
+});
