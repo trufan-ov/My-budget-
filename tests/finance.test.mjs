@@ -79,7 +79,7 @@ test('historical bank operations do not change opening balances but same-day new
 });
 test('multiple accounts and transfers conserve net worth',async()=>{
  const {record,accountBalances,balanceAt}=await import('../src/core.mjs');
- const state={...blank(),accounts:[{id:'cash',name:'Наличные',opening:50000,includeInDaily:true}]};
+ const state={...blank(),opening:{available:1000000,savings:0},accounts:[{id:'cash',name:'Наличные',opening:50000,includeInDaily:true}]};
  const moved=record(state,{kind:'transfer',fromAccount:'main',toAccount:'cash',amount:100000,date:'2026-11-18'});
  assert.equal(accountBalances(moved).cash,150000);
  assert.equal(balanceAt(moved).total,balanceAt(state).total);
