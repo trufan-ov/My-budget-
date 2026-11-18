@@ -59,7 +59,7 @@ export function futureOccurrences(state,start,end,includeCompleted=false){const 
 let occurrence=rule.type==='salary'?salaryDate(year,month,rule.day,rule.moveWeekends!==false):dateISO(new Date(year,month-1,Math.min(rule.day,new Date(year,month,0).getDate()),12));
 if(occurrence<start||occurrence>end||(rule.start&&occurrence<rule.start)||(rule.end&&occurrence>rule.end))continue;
 const id=`${rule.id}:${year}-${String(month).padStart(2,'0')}`;
-out.push({id,ruleId:rule.id,date:occurrence,kind:rule.type==='salary'?'income':'expense',amount:rule.amount,title:rule.title,category:rule.category||'Обязательное',type:rule.type});}}
+out.push({id,ruleId:rule.id,date:occurrence,kind:['salary','income'].includes(rule.type)?'income':'expense',amount:rule.amount,title:rule.title,category:rule.category||'Обязательное',type:rule.type});}}
 for(const item of state.oneOffs){if(item.date>=start&&item.date<=end)out.push({...item,kind:item.kind||'expense',type:'oneOff'});}
 return out.filter(o=>includeCompleted||!state.transactions.some(t=>t.plannedId===o.id)).sort((a,b)=>a.date.localeCompare(b.date)||a.id.localeCompare(b.id));}
 export function nextSalaryDate(state,today){const until=addDays(today,90);return futureOccurrences(state,addDays(today,1),until).filter(x=>x.kind==='income'&&x.type==='salary').map(x=>x.date).sort()[0]||addDays(today,14);}
