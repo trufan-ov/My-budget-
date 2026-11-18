@@ -36,7 +36,7 @@ function calendarPanel(){
  const events=pendingEvents(state,today,addDays(today,45));
  const dates=[...new Set(events.map(e=>e.date))].sort();
  return `<section class="card section"><h2 class="card-title">Календарь ближайших 45 дней</h2>
- ${dates.length?dates.map(date=>`<div class="item"><div><div class="name">${fmtDate(date)}</div><div class="sub">${events.filter(e=>e.date===date).map(e=>escape(e.title)).join(' · ')}</div></div><strong>${shortMoney(events.filter(e=>e.date===date).reduce((sum,e)=>sum+(e.kind==='income'?e.remaining:-e.remaining),0))}</strong></div>`).join(''):'<div class="empty">Нет запланированных событий</div>'}</section>`;
+ ${dates.length?dates.map(date=>`<div class="item"><div><div class="name">${fmtDate(date)}</div><div class="sub">${events.filter(e=>e.date===date).map(e=>`${e.originalDate&&e.originalDate<today?'⚠ Просрочено с '+fmtDate(e.originalDate)+' · ':''}${escape(e.title)}`).join(' · ')}</div></div><strong>${shortMoney(events.filter(e=>e.date===date).reduce((sum,e)=>sum+(e.kind==='income'?e.remaining:-e.remaining),0))}</strong></div>`).join(''):'<div class="empty">Нет запланированных событий</div>'}</section>`;
 }
 function analyticsPanel(){
  const from=addDays(today,-30),actual=state.transactions.filter(t=>t.kind==='expense'&&!t.historical&&t.date>=from&&t.date<=today);
