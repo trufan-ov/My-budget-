@@ -37,3 +37,17 @@ test('scheduled debt payment is matched to planned event without double counting
  const paid=payDebt(created,d.id,{principal:due[0].principal,interest:due[0].interest,date:'2026-12-18',plannedId:due[0].id});
  assert.equal(pendingEvents(paid,'2026-11-18','2027-03-18').filter(e=>e.type==='debtSchedule').length,2);
 });
+
+test('credit card tracks available limit and grace expiration without fabricating interest',async()=>{
+ const {creditCardStatus}=await import('../src/debts.mjs');
+ const debt={id:'card',type:'creditCard',principal:80000,creditLimit:100000,graceUntil:'2026-12-01'};
+ assert.deepEqual([creditCardStatus(debt,[],'2026-11-30').availableLimit,creditCardStatus(debt,[],'2026-11-30').graceStatus],[20000,'active']);
+ assert.equal(creditCardStatus(debt,[],'2026-12-02').graceStatus,'expired');
+ const tx=[{debtId:'card',principal:30000,interest:0}];
+ assert.equal(creditCardStatus(debt,tx,'2026-12-02').availableLimit,50000);
+ assert.equal(creditCardStatus(debt,tx,'2026-12-02').owed,50000);
+});
+test('card principal cannot exceed declared credit limit',async()=>{
+ const {addDebt}=await import('../src/debts.mjs');
+ assert.throws(()=>addDebt({debts:[]},{title:'Карта',type:'creditCard',principal:200000,creditLimit:100000}),/превышает/);
+});
