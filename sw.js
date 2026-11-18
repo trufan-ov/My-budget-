@@ -1,5 +1,5 @@
 // Scope-relative caching supports both https://USER.github.io/REPO/ and localhost/.
-const VERSION='moy-budget-pages-v4.10.6';
+const VERSION='moy-budget-pages-v4.10.7';
 const FILES=['./','./index.html','./styles.css','./src/app.mjs','./src/core.mjs','./src/storage.mjs','./src/finance.mjs','./src/debts.mjs','./src/xlsx.mjs','./src/bank.mjs','./icon.svg','./apple-touch-icon.png','./manifest.webmanifest'];
 const root=new URL(self.registration.scope);
 const asset=part=>new URL(part,root).href;
