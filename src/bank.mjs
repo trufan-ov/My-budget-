@@ -44,7 +44,7 @@ export function parseBankCSV(text){
  return parsed;
 }
 export function unmatchedStatementRows(preview,existing){
- const fingerprint=t=>[t.date,t.kind,t.amount,(t.note||'').trim().toLowerCase()].join('|');
+ const fingerprint=t=>[t.accountId||'main',t.date,t.kind,t.amount,(t.note||'').trim().toLowerCase()].join('|');
  const counts=new Map(),seen=new Map();
  for(const t of existing){const key=fingerprint(t);counts.set(key,(counts.get(key)||0)+1);}
  return preview.filter(t=>{
