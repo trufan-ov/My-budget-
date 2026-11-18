@@ -53,3 +53,18 @@ export function unmatchedStatementRows(preview,existing){
   return number>(counts.get(key)||0);
  });
 }
+
+export function bankImportSnapshot(tx){
+ return JSON.stringify([tx.id,tx.date,tx.kind,tx.amount,tx.accountId||'main',tx.note||'',tx.category||'',!!tx.historical,tx.plannedId||null,tx.debtId||null]);
+}
+export function safeImportUndo(state,batch){
+ if(!batch||!Array.isArray(batch.ids))throw Error('Не найдена партия импорта');
+ const ids=new Set(batch.ids);
+ const current=state.transactions.filter(t=>ids.has(t.id));
+ if(current.length!==ids.size)throw Error('Часть импортированных операций уже удалена. Отмена всей партии небезопасна');
+ if(!Array.isArray(batch.snapshots)||batch.snapshots.length!==current.length)throw Error('Для старой партии нет снимков операций. Автоматическая отмена небезопасна');
+ const original=new Set(batch.snapshots);
+ if(current.some(t=>!original.has(bankImportSnapshot(t))))throw Error('Импортированные операции были изменены. Отмена всей партии заблокирована');
+ if(state.transactions.some(t=>t.groupId&&ids.has(t.groupId)))throw Error('Есть связанные операции. Сначала проверьте их вручную');
+ return {...state,transactions:state.transactions.filter(t=>!ids.has(t.id)),importBatches:(state.importBatches||[]).filter(b=>b.id!==batch.id)};
+}
