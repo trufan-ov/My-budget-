@@ -18,12 +18,15 @@ export function goalFundingStatus(state,day){
  const allocated=new Map();
  return (state.goals||[]).map(g=>{
   const accountId=g.fundedAccountId||null;
-  const requested=g.funded||0;
+  const paid=(state.transactions||[]).filter(t=>t.kind==='expense'&&t.plannedId===g.id).reduce((sum,t)=>sum+t.amount,0);
+  const paidFromReserve=(state.transactions||[]).filter(t=>t.kind==='expense'&&t.plannedId===g.id&&(t.accountId||'main')===accountId).reduce((sum,t)=>sum+t.amount,0);
+  const requested=Math.max(0,(g.funded||0)-paidFromReserve);
+  const outstanding=Math.max(0,g.amount-paid);
   const already=accountId?allocated.get(accountId)||0:0;
   const balance=accountId?Math.max(0,balances[accountId]||0):0;
-  const funded=accountId?Math.min(requested,Math.max(0,balance-already)):0;
+  const funded=accountId?Math.min(requested,outstanding,Math.max(0,balance-already)):0;
   if(accountId)allocated.set(accountId,already+funded);
-  return {id:g.id,accountId,requested,funded,unfunded:Math.max(0,g.amount-funded)};
+  return {id:g.id,accountId,requested,funded,paid,unfunded:Math.max(0,outstanding-funded)};
  });
 }
 export function goalEvents(state,start,end){
@@ -59,7 +62,7 @@ export function pendingEvents(state,start,end){
  const all=[...recurring,...overdueOneOffs,...installmentEvents(state,start,end),...goalEvents(state,start,end),...debts];
  return all.map(e=>{
    if(e.type==='debtSchedule')return {...e,remaining:(state.closedPlans||[]).includes(e.id)?0:e.remaining};
-   const paid=actual.filter(t=>e.type==='debt'?t.debtId===e.debtId:t.plannedId===e.id).reduce((a,t)=>a+(e.type==='debt'?t.principal||0:t.amount),0);
+   const paid=e.type==='goal'?0:actual.filter(t=>e.type==='debt'?t.debtId===e.debtId:t.plannedId===e.id).reduce((a,t)=>a+(e.type==='debt'?t.principal||0:t.amount),0);
    const closed=(state.closedPlans||[]).includes(e.id);
    return {...e,paid,remaining:closed?0:Math.max(0,e.amount-paid)};
  }).filter(e=>e.remaining>0);
