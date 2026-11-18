@@ -81,7 +81,7 @@ root.addEventListener('change',async ev=>{if(ev.target.dataset.bankKind!==undefi
 if(ev.target.id==='bank-csv'){const file=ev.target.files?.[0];if(!file)return;try{
  if(/\.xlsx$/i.test(file.name)){
   const workbook=await readXlsx(file);
-  const rows=workbook.rows.map((row,i)=>row.map((cell,j)=>i>0&&j===0&&/^\d+(\.\d+)?$/.test(String(cell))?excelDate(cell,workbook.date1904):String(cell)));
+  const dateIndex=(workbook.rows[0]||[]).findIndex(h=>/дата|date/i.test(String(h)));const rows=workbook.rows.map((row,i)=>row.map((cell,j)=>i>0&&j===dateIndex&&/^\d+(\.\d+)?$/.test(String(cell))?excelDate(cell,workbook.date1904):String(cell)));
   const quote=v=>'"'+String(v).replace(/"/g,'""')+'"';
   bankPreview=parseBankCSV(rows.map(r=>r.map(quote).join(';')).join('\n'));
  }else if(/\.csv$/i.test(file.name))bankPreview=parseBankCSV(await file.text());
