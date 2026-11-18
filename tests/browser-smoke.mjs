@@ -18,6 +18,18 @@ try{
  await page.reload({waitUntil:'networkidle'});
  await page.locator('[data-nav="plan"]:visible').first().click();
  await page.getByText('Мальчишник',{exact:true}).first().waitFor();
+ await page.locator('[data-nav="accounts"]:visible').first().click();
+ await page.locator('[data-modal="account"]').click();
+ await page.locator('[name="title"]').fill('Наличные');
+ await page.locator('[name="opening"]').fill('500');
+ await page.locator('form[data-form="account"] button[type="submit"]').click();
+ await page.getByText('Наличные',{exact:true}).first().waitFor();
+ await page.locator('[data-nav="debts"]:visible').first().click();
+ await page.locator('[data-modal="debt"]').click();
+ await page.locator('[name="title"]').fill('Тестовый долг');
+ await page.locator('[name="principal"]').fill('1000');
+ await page.locator('form[data-form="debt"] button[type="submit"]').click();
+ await page.getByText('Тестовый долг',{exact:true}).first().waitFor();
  assert.deepEqual(errors,[]);
  console.log('PASS: iPhone-size personal draft click, goals, 10 installments, subscriptions, persistence, no JS errors');
 }finally{await browser.close();}
