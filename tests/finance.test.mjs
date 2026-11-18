@@ -306,3 +306,10 @@ test('partial goal payment from another account keeps earmarked reserve intact',
  assert.equal(pendingEvents(paid,'2026-11-18','2026-12-10').some(e=>e.id==='trip'),false);
  assert.equal(financeForecast(paid,'2026-11-18',3)[1].savings,0);
 });
+
+test('fully paid goal is not an outstanding event or future forecast expense',()=>{
+ const base={...blank(),opening:{available:1000000,savings:500000},goals:[{id:'trip',title:'Trip',date:'2026-12-05',amount:500000,funded:500000,fundedAccountId:'savings'}]};
+ const paid=record(base,{kind:'expense',accountId:'savings',amount:500000,date:'2026-11-18',plannedId:'trip',category:'Цель'});
+ assert.equal(pendingEvents(paid,'2026-11-18','2026-12-31').some(e=>e.id==='trip'),false);
+ assert.equal(financeForecast(paid,'2026-11-18',3)[1].savings,0);
+});
