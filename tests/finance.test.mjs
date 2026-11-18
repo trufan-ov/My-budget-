@@ -212,3 +212,10 @@ test('overdue unconfirmed one-off income is never credited as future cash',()=>{
  assert.equal(pendingEvents(state,'2026-11-18','2026-11-30').some(e=>e.id==='late-bonus'),false);
  assert.equal(dailyPlan(state,'2026-11-18','2026-11-18').maximumDaily,100000);
 });
+
+test('forecast rejects invalid savings rates instead of silently crediting interest',()=>{
+ for(const apr of [-1,101,'not-a-number']){
+  const state={...blank(),settings:{...blank().settings,savingsApr:apr}};
+  assert.throws(()=>financeForecast(state,'2026-11-18',3,'comfortable'),/ставка накоплений/i);
+ }
+});
