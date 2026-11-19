@@ -13,6 +13,12 @@ try{
  await week.click();
  assert.equal(await week.getAttribute('aria-pressed'),'true');
  await page.locator('.balance-plot svg').waitFor();
+ const graph=page.getByRole('slider',{name:'Остаток по дате'});
+ const latest=await graph.getAttribute('aria-valuetext');
+ await graph.press('Home');
+ assert.notEqual(await graph.getAttribute('aria-valuetext'),latest);
+ await graph.press('End');
+ assert.equal(await graph.getAttribute('aria-valuetext'),latest);
  await page.waitForFunction(()=>Boolean(navigator.serviceWorker.controller));
  assert.equal(await page.evaluate(async()=>Boolean(await caches.match('/index.html'))),true);
  if(process.env.BROWSER!=='webkit'){
