@@ -30,6 +30,7 @@ try{
  await page.locator('.mobile-nav [data-nav="more"]').click();
  assert.equal(await page.locator('.more-link').count(),4);
  await page.locator('.more-link[data-nav="settings"]').click();
+ await page.locator('[data-panel="settings-draft"] > summary').click();
  await page.locator('[data-personal-seed]').click();
  await page.locator('[data-nav="plan"]:visible').first().click();
  await page.getByText('Мальчишник',{exact:true}).first().waitFor();
@@ -37,6 +38,11 @@ try{
  assert.equal(await page.locator('[data-plan-pay]').count(),12);
  await page.locator('.mobile-nav [data-nav="more"]').click();
  await page.locator('.more-link[data-nav="forecast"]').click();
+ const breakdown=page.locator('[data-panel="forecast-table"]');
+ await breakdown.locator('summary').click();
+ assert.equal(await breakdown.locator('tbody tr:visible').count(),6);
+ await page.locator('[data-horizon="12"]').click();
+ assert.equal(await breakdown.locator('tbody tr:visible').count(),12);
  await page.getByText('Прогноз по месяцам',{exact:true}).first().waitFor();
  assert.equal(await page.getByText(/NaN|не число/i).count(),0);
  await page.locator('[data-scenario="actual"]').click();
@@ -48,14 +54,16 @@ try{
  }
  await page.locator('.mobile-nav [data-nav="more"]').click();
  await page.locator('.more-link[data-nav="settings"]').click();
+ await page.locator('[data-panel="settings-subscriptions"] > summary').click();
  await page.getByText('ChatGPT',{exact:true}).first().waitFor();
  await page.reload({waitUntil:'networkidle'});
  await page.locator('[data-nav="plan"]:visible').first().click();
  await page.getByText('Мальчишник',{exact:true}).first().waitFor();
  await page.locator('.mobile-nav [data-nav="more"]').click();
  await page.locator('.more-link[data-nav="accounts"]').click();
+ await page.locator('[data-panel="account-savings"] > summary').click();
  await page.locator('[data-account-toggle="savings"]').click();
- await page.getByText('Учитывать в дневном бюджете',{exact:true}).first().waitFor();
+ await page.getByText('Исключить из дневного бюджета',{exact:true}).first().waitFor();
  await page.locator('[data-modal="account"]').click();
  await page.locator('[name="title"]').fill('Наличные');
  await page.locator('[name="opening"]').fill('500');
@@ -70,6 +78,9 @@ try{
  await page.getByText('Тестовый долг',{exact:true}).first().waitFor();
  await page.locator('.mobile-nav [data-nav="more"]').click();
  await page.locator('.more-link[data-nav="settings"]').click();
+ const importPanel=page.locator('[data-panel="settings-import"]');
+ assert.equal(await importPanel.getAttribute('open'),null);
+ await importPanel.locator('summary').click();
  const statement={name:'statement.csv',mimeType:'text/csv',buffer:Buffer.from('Дата;Сумма;Описание\n19.11.2026;(50,01);Тестовая покупка\n19.11.2026;15 USD;Другая валюта\n')};
  await page.locator('#bank-csv').setInputFiles(statement);
  await page.getByText(/Строк с некорректной датой или суммой: 1/).waitFor();
@@ -125,6 +136,7 @@ try{
  assert.deepEqual(afterRestore.restored,afterRestore.stored);
  await page.reload();
  await page.locator('.mobile-nav [data-nav="plan"]').click();
+ await page.locator('[data-panel="plan-rules"] > summary').click();
  await page.locator('[data-modal="rule"]').click();
  await page.locator('[name="title"]').fill('Тестовое правило');
  await page.locator('[name="amount"]').fill('200');
@@ -169,6 +181,15 @@ try{
   return (await load()).transactions.find(tx=>tx.plannedId==='partial-bill');
  });
  assert.deepEqual([payment.amount,payment.accountId],[1234,'savings']);
+ await page.locator('.modal button[data-close]').first().click();
+ await page.locator('.mobile-nav [data-nav="history"]').click();
+ const operation=page.locator('.operation-menu').first();
+ const operationMenu=operation.locator('summary');
+ assert.equal(await operation.locator('[data-delete]').isVisible(),false);
+ await operationMenu.click();
+ assert.equal(await operation.locator('[data-delete]').isVisible(),true);
+ await operationMenu.press('Escape');
+ assert.equal(await operation.locator('[data-delete]').isVisible(),false);
  assert.deepEqual(errors,[]);
  console.log('PASS: iPhone-size personal draft click, goals, 10 installments, subscriptions, persistence, concurrent edits, backup round-trip, write rollback, service worker cache, no JS errors');
 }finally{await browser.close();}
