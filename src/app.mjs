@@ -117,7 +117,51 @@ root.addEventListener('input',event=>{
  plot.querySelector('[data-plot-point]').setAttribute('d','M'+x+' '+y+'h0.01');
  control.setAttribute('aria-valuetext',date+' · '+amount);
 });
-function home(){const s=summary(),safe=deadlineBudget(),rows=state.transactions.filter(t=>t.date<=today).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5),next=pendingEvents(state,today,addDays(today,30)).slice(0,4);return `<div class="dashboard-overview"><section class="balance-section"><div class="balance-label">Доступно сейчас</div><div class="balance-value">${shortMoney(s.current.available)}</div><div class="balance-caption">Для расходов · без накоплений</div><div class="primary-actions"><button class="quick-action quick-main" data-modal="expense"><span>−</span> Расход</button><button class="quick-action" data-modal="income"><span>＋</span> Доход</button><button class="quick-action" data-modal="transfer"><span>↗</span> Перевод</button></div></section><section class="history-panel">${balanceChart()}</section><section class="insights"><div class="insight"><span class="insight-label">Копилка</span><strong>${shortMoney(s.current.savings)}</strong><button data-modal="transfer" class="insight-link">Управлять ↗</button></div><div class="insight"><span class="insight-label">Дневной лимит</span><strong>${shortMoney(safe.daily)}</strong><span class="insight-detail">Горизонт 45 дней</span></div><div class="insight"><span class="insight-label">Обязательства</span><strong>${shortMoney(s.reserved)}</strong><button data-nav="plan" class="insight-link">Посмотреть ↗</button></div></section></div>${safe.firstShortfall?`<div class="banner warning">Возможный дефицит ${fmtDate(safe.firstShortfall.date)}: ${shortMoney(safe.firstShortfall.amount)}. Проверьте счёт и сроки платежей.</div>`:''}<div class="home-columns"><section class="content-section"><div class="heading-row"><h2 class="card-title">Последние операции</h2><button class="text-link" data-nav="history">Все</button></div><div class="list-surface">${rows.length?rows.map(tx=>itemTx(tx,false)).join(''):'<div class="empty">Операций пока нет</div>'}</div></section><section class="content-section"><div class="heading-row"><h2 class="card-title">Ближайшие платежи</h2><button class="text-link" data-nav="plan">План</button></div><div class="list-surface">${next.length?next.map(p=>`<div class="item"><div><div class="name">${escape(p.title)}</div><div class="sub">${fmtDate(p.date)}</div></div><div class="amount ${p.kind==='income'?'green':''}">${p.kind==='income'?'+':'−'}${shortMoney(p.remaining)}</div></div>`).join(''):'<div class="empty">Событий пока нет</div>'}</div><div class="next-salary">Следующая зарплата <strong>${fmtDate(s.nextSalary)}</strong></div></section></div>`;}
+function metricTrack(value,total,label){
+ if(total<=0)return '';
+ const share=Math.min(100,Math.max(0,value/total*100));
+ return `<div class="metric-track" role="img" aria-label="${label} · ${Math.round(share)}%" title="${label} · ${Math.round(share)}%"><span style="width:${share}%"></span></div>`;
+}
+
+function home(){
+ const s=summary(),safe=deadlineBudget();
+ const rows=state.transactions.filter(tx=>tx.date<=today).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
+ const next=pendingEvents(state,today,addDays(today,30)).slice(0,4);
+ const total=Math.max(0,s.current.available)+Math.max(0,s.current.savings);
+ const target=state.settings?.planning?.dailyTarget??0;
+ return `<div class="dashboard-overview" aria-label="Обзор бюджета">
+  <section class="balance-section">
+   <h2 class="balance-label">Доступно сейчас</h2>
+   <div class="balance-value">${shortMoney(s.current.available)}</div>
+   <div class="balance-caption">Без копилки</div>
+  </section>
+  <div class="primary-actions dashboard-actions" role="group" aria-label="Новая операция">
+   <button class="quick-action quick-main" data-modal="expense"><span aria-hidden="true">−</span> Расход</button>
+   <button class="quick-action" data-modal="income"><span aria-hidden="true">+</span> Доход</button>
+   <button class="quick-action" data-modal="transfer"><span aria-hidden="true">↗</span> Перевод</button>
+  </div>
+  <section class="history-panel">${balanceChart()}</section>
+  <div class="insights">
+   <section class="insight dashboard-savings"><h2 class="insight-label">Копилка</h2><strong>${shortMoney(s.current.savings)}</strong>
+    ${metricTrack(s.current.savings,total,'Доля копилки в остатках')}<button data-modal="transfer" class="insight-link">Управлять ↗</button></section>
+   <section class="insight dashboard-daily"><h2 class="insight-label">Дневной лимит</h2><strong>${shortMoney(safe.daily)}</strong>
+    ${target>0?metricTrack(safe.daily,target,'Доля от дневной цели'):''}<span class="insight-detail">На ближайшие 45 дней</span></section>
+   <section class="insight dashboard-due"><h2 class="insight-label">Обязательства</h2><strong>${shortMoney(s.reserved)}</strong>
+    ${metricTrack(s.reserved,s.current.available,'Доля доступного остатка в резерве')}<button data-nav="plan" class="insight-link">Посмотреть ↗</button></section>
+  </div>
+ </div>
+ ${safe.firstShortfall?`<div class="banner warning">Возможный дефицит ${fmtDate(safe.firstShortfall.date)} · ${shortMoney(safe.firstShortfall.amount)}</div>`:''}
+ <div class="home-columns">
+  <section class="content-section"><div class="heading-row"><h2 class="card-title">Последние операции</h2><button class="text-link" data-nav="history">Все</button></div>
+   <div class="list-surface">${rows.length?rows.map(tx=>itemTx(tx,false)).join(''):'<div class="empty">Операций пока нет</div>'}</div></section>
+  <section class="content-section"><div class="heading-row"><h2 class="card-title">Ближайшие платежи</h2><button class="text-link" data-nav="plan">План</button></div>
+   <div class="list-surface">${next.length?next.map(payment=>`<div class="item"><div><div class="name">${escape(payment.title)}</div><div class="sub">${fmtDate(payment.date)}</div></div>
+    <div class="amount ${payment.kind==='income'?'green':''}">${payment.kind==='income'?'+':'−'}${shortMoney(payment.remaining)}</div></div>`).join(''):'<div class="empty">Событий пока нет</div>'}</div>
+   <div class="next-salary">Следующая зарплата <strong>${fmtDate(s.nextSalary)}</strong></div>
+  </section>
+ </div>`;
+}
+
 function calendarPanel(){
  const events=pendingEvents(state,today,addDays(today,45));
  const dates=[...new Set(events.map(e=>e.date))].sort();

@@ -326,3 +326,56 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .dated-operations:last-of-type .operation-item:last-child .operation-actions { top: auto; bottom: calc(100% + 4px); }
 .operation-item .name, .operation-item .sub { overflow-wrap: anywhere; }
 .item-end { gap: 8px; }
+
+/* Compact dashboard composition */
+.dashboard-overview { grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-rows: auto; gap: 10px; }
+.dashboard-overview .balance-section, .dashboard-overview .history-panel,
+.dashboard-overview .dashboard-actions { grid-column: 1 / -1; grid-row: auto; }
+.dashboard-overview .balance-section, .dashboard-overview .insight {
+  padding: 15px 17px;
+  border-radius: 13px;
+  min-width: 0;
+  background: radial-gradient(ellipse at 100% 0, #1a2339 0, transparent 72%), #141519;
+}
+.dashboard-overview .insights { display: contents; }
+.dashboard-overview .insight { gap: 8px; }
+.dashboard-overview .insight:last-child { display: flex; grid-column: 1 / -1; }
+.dashboard-overview .insight strong { font-variant-numeric: tabular-nums; }
+.dashboard-overview .insight-label, .dashboard-overview .balance-label { margin: 0; font-size: 12px; font-weight: 510; }
+.dashboard-overview .balance-value { font-size: clamp(32px, 6vw, 46px); }
+.dashboard-overview .balance-caption { margin: 0; }
+.dashboard-overview .balance-section { gap: 7px; }
+.dashboard-actions .quick-action { min-height: 42px; }
+.dashboard-overview .history-panel { padding: 16px; box-shadow: inset 0 1px #56668428; }
+.dashboard-overview .plot-reading strong { font-size: clamp(23px,3vw,34px); }
+.dashboard-overview .balance-plot svg { height: 168px; }
+.metric-track {
+  width: 100%;
+  height: 7px;
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+  background: repeating-linear-gradient(90deg, #333845 0 3px, transparent 3px 5px);
+}
+.metric-track span {
+  display: block;
+  height: 100%;
+  background: repeating-linear-gradient(90deg, #567bc6 0 3px, #171e2b 3px 5px);
+}
+.home-columns .content-section { padding: 16px 19px; border-radius: 13px; }
+.home-columns .heading-row { margin-bottom: 9px; }
+.home-columns .item { padding-block: 11px; }
+@media (min-width: 1050px) {
+  .dashboard-overview { grid-template-columns: minmax(0,1.85fr) repeat(2,minmax(0,1fr)); grid-template-rows: auto 1fr 1fr; }
+  .dashboard-overview .dashboard-actions { grid-column: 1 / -1; grid-row: 1; justify-content: flex-end; }
+  .dashboard-overview .history-panel { grid-column: 1; grid-row: 2 / 4; }
+  .dashboard-overview .balance-section { grid-column: 2; grid-row: 2; }
+  .dashboard-overview .dashboard-savings { grid-column: 3; grid-row: 2; }
+  .dashboard-overview .dashboard-daily { grid-column: 2; grid-row: 3; }
+  .dashboard-overview .dashboard-due.insight { grid-column: 3; grid-row: 3; }
+  .dashboard-overview .balance-value { font-size: clamp(25px, 2.55vw, 37px); }
+  .dashboard-overview .balance-plot svg { height: clamp(180px,18vw,265px); }
+}
+@media (max-width: 700px) {
+  .dashboard-overview .balance-value { font-size: clamp(36px, 11vw, 45px); }
+}
