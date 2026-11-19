@@ -222,3 +222,160 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   .dashboard-overview .balance-plot svg { height: 160px; }
   .plot-reading { margin-bottom: 2px; }
 }
+
+/* Secondary views */
+.disclosure { margin-top: 12px; padding: 0; }
+.disclosure > summary {
+  display: grid;
+  grid-template-columns: minmax(0,1fr) auto 10px;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 17px;
+  min-height: 50px;
+  cursor: pointer;
+  list-style: none;
+  font-weight: 600;
+}
+.disclosure > summary::-webkit-details-marker { display: none; }
+.disclosure > summary::after {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-right: 1px solid var(--secondary);
+  border-bottom: 1px solid var(--secondary);
+  transform: rotate(45deg);
+}
+.disclosure[open] > summary::after { transform: rotate(225deg); }
+.disclosure > summary:focus-visible { outline: 2px solid #93a9dd; outline-offset: -4px; border-radius: 12px; }
+.disclosure > summary small { color: var(--secondary); font-size: 11px; font-weight: 500; }
+.disclosure-content { padding: 2px 17px 16px; }
+.disclosure-content > p:first-child { margin-top: 0; }
+.settings-stack { display: grid; gap: 8px; max-width: 820px; }
+.settings-stack .disclosure { margin-top: 0; scroll-margin-top: 12px; }
+.check-row, .account-controls, .forecast-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.check-row input { accent-color: var(--blue-edge); }
+.bank-import input[type="file"] { width: 100%; }
+.account-entry + .account-entry { border-top: 1px solid var(--border); margin-top: 10px; }
+.account-entry .disclosure { margin: 0 0 8px; border-color: transparent; background: transparent; }
+.account-entry .disclosure > summary { font-size: 12px; padding-inline: 0; min-height: 38px; color: var(--secondary); }
+.account-entry .disclosure-content { padding-inline: 0; }
+.account-entry .item { border: 0; padding-bottom: 6px; gap: 12px; overflow-wrap: anywhere; }
+.account-entry strong { text-align: right; }
+.operations-head { flex-wrap: wrap; align-items: center; }
+.operations-head .tabs, .forecast-controls .tabs { margin: 0; }
+.dated-operations h2 { margin: 16px 0 0; color: var(--secondary); font-size: 12px; font-weight: 600; }
+.dated-operations + .dated-operations { border-top: 1px solid var(--border); }
+.history-more { margin-top: 12px; }
+.expense-breakdown { display: grid; gap: 15px; padding: 0; margin: 4px 0; list-style: none; }
+.expense-breakdown li > div:first-child { display: flex; justify-content: space-between; gap: 10px; font-size: 13px; margin-bottom: 7px; }
+.expense-breakdown strong { flex: none; }
+.category-track { height: 6px; border-radius: 8px; background: #2b2d35; overflow: hidden; }
+.category-track span { display: block; height: 100%; background: #4265aa; border-radius: inherit; }
+.plan-limit, .debt-total { margin-block: 10px; }
+.plan-limit small { font-size: 14px; letter-spacing: 0; color: var(--secondary); }
+.period-details { margin-bottom: 14px; }
+.period-details > summary { cursor: pointer; color: var(--secondary); font-size: 13px; }
+.forecast-controls { justify-content: space-between; margin-bottom: 12px; }
+.forecast-overview .big { margin-block: 10px; }
+.projection-chart { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0,1fr); gap: 4px; margin-top: 20px; }
+.projection-month { display: grid; grid-template-rows: 170px auto; min-width: 0; gap: 4px; text-align: center; font-size: clamp(8px, 2.05vw, 12px); color: var(--secondary); }
+.projection-track { position: relative; }
+.projection-track::before { content: ''; position: absolute; inset-inline: -2px; top: var(--axis); border-top: 1px solid #666a76; }
+.projection-bar { position: absolute; inset-inline: 15%; border-radius: 4px 4px 0 0; background: linear-gradient(#4b6db4,#233e78); }
+.projection-bar.negative { border-radius: 0 0 4px 4px; background: #bb737b; }
+.forecast-table-wrap { overflow-x: auto; }
+.forecast-table th, .forecast-table td { white-space: nowrap; }
+@media (max-width: 440px) {
+  .heading-row:has(> .btn:nth-child(3)) { flex-wrap: wrap; }
+  .heading-row:has(> .btn:nth-child(3)) .card-title { flex-basis: 100%; }
+  .disclosure > summary { padding-inline: 13px; gap: 8px; }
+  .disclosure-content { padding-inline: 13px; }
+  .disclosure > summary small { max-width: 95px; text-align: right; }
+  .operations-head > .btn, .account-head > .btn { max-width: none; }
+  .dated-operations .item { flex-wrap: wrap; }
+  .dated-operations .item-end { margin-left: auto; }
+}
+
+.operation-menu { position: relative; flex: none; }
+.operation-menu > summary {
+  display: grid;
+  place-items: center;
+  min-width: 38px;
+  min-height: 38px;
+  border-radius: 8px;
+  list-style: none;
+  color: var(--secondary);
+  cursor: pointer;
+  font-size: 22px;
+}
+.operation-menu > summary::-webkit-details-marker { display: none; }
+.operation-menu > summary:hover, .operation-menu[open] > summary { background: var(--surface-raised); color: var(--ink); }
+.operation-actions {
+  position: absolute;
+  z-index: 2;
+  top: calc(100% + 4px);
+  right: 0;
+  display: flex;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  box-shadow: 0 6px 20px #0008;
+}
+.dated-operations:last-of-type .operation-item:last-child .operation-actions { top: auto; bottom: calc(100% + 4px); }
+.operation-item .name, .operation-item .sub { overflow-wrap: anywhere; }
+.item-end { gap: 8px; }
+
+/* Compact dashboard composition */
+.dashboard-overview { grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-rows: auto; gap: 10px; }
+.dashboard-overview .balance-section, .dashboard-overview .history-panel,
+.dashboard-overview .dashboard-actions { grid-column: 1 / -1; grid-row: auto; }
+.dashboard-overview .balance-section, .dashboard-overview .insight {
+  padding: 15px 17px;
+  border-radius: 13px;
+  min-width: 0;
+  background: radial-gradient(ellipse at 100% 0, #1a2339 0, transparent 72%), #141519;
+}
+.dashboard-overview .insights { display: contents; }
+.dashboard-overview .insight { gap: 8px; }
+.dashboard-overview .insight:last-child { display: flex; grid-column: 1 / -1; }
+.dashboard-overview .insight strong { font-variant-numeric: tabular-nums; }
+.dashboard-overview .insight-label, .dashboard-overview .balance-label { margin: 0; font-size: 12px; font-weight: 510; }
+.dashboard-overview .balance-value { font-size: clamp(32px, 6vw, 46px); }
+.dashboard-overview .balance-caption { margin: 0; }
+.dashboard-overview .balance-section { gap: 7px; }
+.dashboard-actions .quick-action { min-height: 42px; }
+.dashboard-overview .history-panel { padding: 16px; box-shadow: inset 0 1px #56668428; }
+.dashboard-overview .plot-reading strong { font-size: clamp(23px,3vw,34px); }
+.dashboard-overview .balance-plot svg { height: 168px; }
+.metric-track {
+  width: 100%;
+  height: 7px;
+  border-radius: 2px;
+  position: relative;
+  overflow: hidden;
+  background: repeating-linear-gradient(90deg, #333845 0 3px, transparent 3px 5px);
+}
+.metric-track span {
+  display: block;
+  height: 100%;
+  background: repeating-linear-gradient(90deg, #567bc6 0 3px, #171e2b 3px 5px);
+}
+.home-columns .content-section { padding: 16px 19px; border-radius: 13px; }
+.home-columns .heading-row { margin-bottom: 9px; }
+.home-columns .item { padding-block: 11px; }
+@media (min-width: 1050px) {
+  .dashboard-overview { grid-template-columns: minmax(0,1.85fr) repeat(2,minmax(0,1fr)); grid-template-rows: auto 1fr 1fr; }
+  .dashboard-overview .dashboard-actions { grid-column: 1 / -1; grid-row: 1; justify-content: flex-end; }
+  .dashboard-overview .history-panel { grid-column: 1; grid-row: 2 / 4; }
+  .dashboard-overview .balance-section { grid-column: 2; grid-row: 2; }
+  .dashboard-overview .dashboard-savings { grid-column: 3; grid-row: 2; }
+  .dashboard-overview .dashboard-daily { grid-column: 2; grid-row: 3; }
+  .dashboard-overview .dashboard-due.insight { grid-column: 3; grid-row: 3; }
+  .dashboard-overview .balance-value { font-size: clamp(25px, 2.55vw, 37px); }
+  .dashboard-overview .balance-plot svg { height: clamp(180px,18vw,265px); }
+}
+@media (max-width: 700px) {
+  .dashboard-overview .balance-value { font-size: clamp(36px, 11vw, 45px); }
+}
