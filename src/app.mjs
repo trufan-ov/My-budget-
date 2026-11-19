@@ -65,7 +65,7 @@ function itemTx(tx,editable=true){
  }
  const canEdit=!(tx.debtId||tx.groupId||state.transactions.some(item=>item.groupId===tx.id));
  return `<div class="item operation-item"><div><div class="name">${escape(title)}</div>
-  <div class="sub">${editable?'':fmtDate(tx.date)+' · '}${escape(detail)}</div></div>
+  <div class="sub">${editable?'':fmtDate(tx.date)}${detail!==title?`${editable?'':' · '}${escape(detail)}`:''}</div></div>
   <div class="item-end"><span class="amount ${incoming?'green':tx.kind==='expense'?'red':''}">${sign+shortMoney(tx.amount)}</span>
   ${editable?`<details class="operation-menu">
    <summary aria-label="Действия с операцией ${escape(title)}"><span aria-hidden="true">⋯</span></summary>
@@ -92,7 +92,7 @@ function balanceChart(){
  const line=samples.map(({x,y})=>x+","+y).join(" "),first=samples[0],last=samples.at(-1);
  const dates=first.date+" — "+last.date;
  return header+`<figure class="balance-plot">
- <div class="plot-reading"><strong data-plot-amount>${last.amount}</strong><span data-plot-date>${last.date}</span></div>
+ <div class="plot-reading" aria-hidden="true"><strong data-plot-amount>${last.amount}</strong><span data-plot-date>${last.date}</span></div>
  <div class="plot-scale"><span>${shortMoney(high)}</span>${low!==high?`<span>${shortMoney(low)}</span>`: ''}</div>
  <div class="plot-stage">
  <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Доступный остаток, ${dates}. Минимум ${shortMoney(low)}, максимум ${shortMoney(high)}">
@@ -111,53 +111,41 @@ root.addEventListener('input',event=>{
  if(!control)return;
  const {x,y,amount,date}=JSON.parse(control.dataset.plotPoints)[Number(control.value)];
  const plot=control.closest('.balance-plot');
+ plot.classList.toggle('has-selection',control.value!==control.max);
  plot.querySelector('[data-plot-amount]').textContent=amount;
  plot.querySelector('[data-plot-date]').textContent=date;
  plot.querySelector('[data-plot-guide]').setAttribute('d','M'+x+' 4V96');
  plot.querySelector('[data-plot-point]').setAttribute('d','M'+x+' '+y+'h0.01');
  control.setAttribute('aria-valuetext',date+' · '+amount);
 });
-function metricTrack(value,total,label){
- if(total<=0)return '';
- const share=Math.min(100,Math.max(0,value/total*100));
- return `<div class="metric-track" role="img" aria-label="${label} · ${Math.round(share)}%" title="${label} · ${Math.round(share)}%"><span style="width:${share}%"></span></div>`;
-}
-
 function home(){
- const s=summary(),safe=deadlineBudget();
- const rows=state.transactions.filter(tx=>tx.date<=today).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5);
- const next=pendingEvents(state,today,addDays(today,30)).slice(0,4);
- const total=Math.max(0,s.current.available)+Math.max(0,s.current.savings);
- const target=state.settings?.planning?.dailyTarget??0;
- return `<div class="dashboard-overview" aria-label="Обзор бюджета">
-  <section class="balance-section">
+ const {current}=summary(),safe=deadlineBudget();
+ const rows=state.transactions.filter(tx=>tx.date<=today).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,3);
+ const payment=pendingEvents(state,today,addDays(today,45)).find(event=>event.kind==='expense');
+ const paymentLink=payment?`<button class="overview-row" data-nav="plan" data-plan-target="${escape(payment.id)}">
+  <span>${payment.originalDate<today?'Просрочен платёж':'Ближайший платёж'}<small>${escape(payment.title)} · ${fmtDate(payment.originalDate||payment.date)}</small></span>
+  <strong>${shortMoney(payment.remaining)} <span aria-hidden="true">›</span></strong>
+ </button>`:'';
+ return `<div class="quiet-home">
+  <section class="quiet-balance">
    <h2 class="balance-label">Доступно сейчас</h2>
-   <div class="balance-value">${shortMoney(s.current.available)}</div>
+   <div class="balance-value">${shortMoney(current.available)}</div>
    <div class="balance-caption">Без копилки</div>
+   <div class="primary-actions dashboard-actions" role="group" aria-label="Новая операция">
+    <button class="quick-action quick-main" data-modal="expense">Расход</button>
+    <button class="quick-action" data-modal="income">Доход</button>
+    <button class="quick-action" data-modal="transfer">Перевод</button>
+   </div>
+   <div class="quiet-facts">
+    <button class="overview-row" data-nav="plan"><span>Дневной лимит</span><strong>${shortMoney(safe.daily)} <span aria-hidden="true">›</span></strong></button>
+    ${paymentLink}
+   </div>
+   ${safe.firstShortfall?`<p class="quiet-alert">Возможный дефицит ${fmtDate(safe.firstShortfall.date)} · ${shortMoney(safe.firstShortfall.amount)}</p>`:''}
   </section>
-  <div class="primary-actions dashboard-actions" role="group" aria-label="Новая операция">
-   <button class="quick-action quick-main" data-modal="expense"><span aria-hidden="true">−</span> Расход</button>
-   <button class="quick-action" data-modal="income"><span aria-hidden="true">+</span> Доход</button>
-   <button class="quick-action" data-modal="transfer"><span aria-hidden="true">↗</span> Перевод</button>
-  </div>
-  <section class="history-panel">${balanceChart()}</section>
-  <div class="insights">
-   <section class="insight dashboard-savings"><h2 class="insight-label">Копилка</h2><strong>${shortMoney(s.current.savings)}</strong>
-    ${metricTrack(s.current.savings,total,'Доля копилки в остатках')}<button data-modal="transfer" class="insight-link">Управлять ↗</button></section>
-   <section class="insight dashboard-daily"><h2 class="insight-label">Дневной лимит</h2><strong>${shortMoney(safe.daily)}</strong>
-    ${target>0?metricTrack(safe.daily,target,'Доля от дневной цели'):''}<span class="insight-detail">На ближайшие 45 дней</span></section>
-   <section class="insight dashboard-due"><h2 class="insight-label">Обязательства</h2><strong>${shortMoney(s.reserved)}</strong>
-    ${metricTrack(s.reserved,s.current.available,'Доля доступного остатка в резерве')}<button data-nav="plan" class="insight-link">Посмотреть ↗</button></section>
-  </div>
- </div>
- ${safe.firstShortfall?`<div class="banner warning">Возможный дефицит ${fmtDate(safe.firstShortfall.date)} · ${shortMoney(safe.firstShortfall.amount)}</div>`:''}
- <div class="home-columns">
-  <section class="content-section"><div class="heading-row"><h2 class="card-title">Последние операции</h2><button class="text-link" data-nav="history">Все</button></div>
-   <div class="list-surface">${rows.length?rows.map(tx=>itemTx(tx,false)).join(''):'<div class="empty">Операций пока нет</div>'}</div></section>
-  <section class="content-section"><div class="heading-row"><h2 class="card-title">Ближайшие платежи</h2><button class="text-link" data-nav="plan">План</button></div>
-   <div class="list-surface">${next.length?next.map(payment=>`<div class="item"><div><div class="name">${escape(payment.title)}</div><div class="sub">${fmtDate(payment.date)}</div></div>
-    <div class="amount ${payment.kind==='income'?'green':''}">${payment.kind==='income'?'+':'−'}${shortMoney(payment.remaining)}</div></div>`).join(''):'<div class="empty">Событий пока нет</div>'}</div>
-   <div class="next-salary">Следующая зарплата <strong>${fmtDate(s.nextSalary)}</strong></div>
+  <section class="quiet-chart">${balanceChart()}</section>
+  <button class="overview-row quiet-savings" data-nav="accounts"><span>Копилка</span><strong>${shortMoney(current.savings)} <span aria-hidden="true">›</span></strong></button>
+  <section class="quiet-recent"><div class="heading-row"><h2 class="card-title">Последние операции</h2><button class="text-link" data-nav="history">Все</button></div>
+   ${rows.length?rows.map(tx=>itemTx(tx,false)).join(''):'<div class="empty">Операций пока нет</div>'}
   </section>
  </div>`;
 }
@@ -180,19 +168,34 @@ function analyticsPanel(){
  const categories=[...groups].sort((a,b)=>b[1]-a[1]);
  const content=total?`<ul class="expense-breakdown">${categories.map(([category,amount])=>{
   const share=amount/total*100;
-  return `<li><div><span>${escape(category)}</span><strong>${shortMoney(amount)} · ${Math.round(share)}%</strong></div>
-   <div class="category-track" aria-hidden="true"><span style="width:${share}%"></span></div></li>`;
+  return `<li><details class="category-detail"><summary><span class="category-values"><span>${escape(category)}</span><strong>${shortMoney(amount)}</strong></span>
+   <span class="category-track" aria-hidden="true"><span style="width:${share}%"></span></span></summary><small>${Math.round(share)}% расходов за 30 дней</small></details></li>`;
  }).join('')}</ul>`:'<p class="empty">Нет расходов за этот период</p>';
  return disclosure('expense-report','Расходы по категориям',content,{summary:'30 дней · '+shortMoney(total)});
 }
 function debtsPage(){
  const settled=ledgerEntries(state,today);
  const balances=accountBalances(state,today);
- return `<section class="card section"><div class="heading-row"><h2 class="card-title">Чистый капитал</h2><button class="btn primary small" data-modal="debt">+ Добавить</button></div>
- <div class="big debt-total">${shortMoney(netWorth(state,balances,settled))}</div>
- ${(state.debts||[]).map(d=>{const b=debtBalance(d,settled);const card=d.type==='creditCard'?creditCardStatus(d,settled,today):null;return `<div class="item"><div><div class="name">${escape(d.title)}</div><div class="sub">${d.type==='lent'?'Мне должны':d.type==='creditCard'?'Кредитная карта':'Я должен'} · ${escape(d.apr)}% годовых ${d.dueDate?'· срок '+fmtDate(d.dueDate):''}${card?` · доступный лимит: ${card.availableLimit===null?'не указан':shortMoney(card.availableLimit)} · льготный период: ${card.graceStatus==='not-configured'?'не указан':card.graceStatus==='expired'?'истёк':card.graceStatus==='active'?'до '+fmtDate(card.graceUntil):'долг погашен'}`:''}</div></div><div class="item-end"><strong>${shortMoney(b.principal)}</strong>${b.principal? `<button class="btn small" data-debt-pay="${escape(d.id)}">Погасить</button>`:''}</div></div>${(d.schedule||[]).length?`<details class="section"><summary>Ориентировочный график (${d.schedule.length} платежей)</summary>${d.schedule.map(p=>`<div class="kpi-row"><span>${fmtDate(p.date)}</span><strong>${shortMoney(p.amount)} <small>(проценты ${shortMoney(p.interest)})</small></strong></div>`).join('')}</details>`:''}`}).join('')||'<div class="empty">Кредитов и долгов пока нет</div>'}
- ${disclosure('debt-model','Как считаются долги','<p class="muted">В остатке учтены проведённые платежи. Графики ориентировочные. Условия начисления процентов, льготный период и комиссии уточняйте по выписке банка.</p>')}</section>`;
+ const rows=(state.debts||[]).map(debt=>{
+  const balance=debtBalance(debt,settled);
+  const card=debt.type==='creditCard'?creditCardStatus(debt,settled,today):null;
+  const id=escape(debt.id);
+  const type=debt.type==='lent'?'Мне должны':debt.type==='creditCard'?'Кредитная карта':'Я должен';
+  const terms=`<div class="kpi-row"><span>Ставка</span><strong>${escape(debt.apr)}% годовых</strong></div>
+   ${card?`<div class="kpi-row"><span>Доступный лимит</span><strong>${card.availableLimit===null?'Не указан':shortMoney(card.availableLimit)}</strong></div>
+    <div class="kpi-row"><span>Льготный период</span><strong>${card.graceStatus==='not-configured'?'Не указан':card.graceStatus==='expired'?'Истёк':card.graceStatus==='active'?fmtDate(card.graceUntil):'Долг погашен'}</strong></div>`:''}
+   ${debt.schedule?.length?`<details class="period-details"><summary>Ориентировочный график</summary>${debt.schedule.map(payment=>`<div class="kpi-row"><span>${fmtDate(payment.date)}</span><strong>${shortMoney(payment.amount)} <small>(проценты ${shortMoney(payment.interest)})</small></strong></div>`).join('')}</details>`:''}`;
+  return `<div class="account-entry"><div class="item"><div><div class="name">${escape(debt.title)}</div>
+   <div class="sub">${type}${debt.dueDate?' · срок '+fmtDate(debt.dueDate):''}</div></div>
+   <div class="item-end"><strong>${shortMoney(balance.principal)}</strong>${balance.principal?`<button class="btn small" data-debt-pay="${id}">Погасить</button>`:''}</div></div>
+   ${disclosure('debt-terms-'+id,'Условия',terms)}</div>`;
+ });
+ return `<section class="card"><div class="heading-row"><h2 class="card-title">Чистый капитал</h2><button class="btn primary small" data-modal="debt">+ Добавить</button></div>
+  <div class="big debt-total">${shortMoney(netWorth(state,balances,settled))}</div>
+  ${rows.join('')||'<div class="empty">Кредитов и долгов пока нет</div>'}
+ </section>`;
 }
+
 function accounts(){
  const balances=accountBalances(state,today);
  const cards=accountList(state).map(account=>{
@@ -202,7 +205,7 @@ function accounts(){
    ${included?'Исключить из дневного бюджета':'Учитывать в дневном бюджете'}</button>
    ${account.id!=='savings'?`<button class="btn small danger" data-account-delete="${id}">Удалить счёт</button>`:''}</div>`;
   return `<div class="account-entry"><div class="item"><div><div class="name">${escape(account.name)}</div>
-   <div class="sub">${included?'В дневном бюджете':'Вне дневного бюджета'}</div></div>
+   <div class="sub">${included?'':'Вне дневного бюджета'}</div></div>
    <strong>${shortMoney(balances[account.id])}</strong></div>
    ${account.id==='main'?'':disclosure('account-'+id,'Управление счётом',actions)}</div>`;
  });
@@ -234,7 +237,7 @@ function history(){
  </section>${analyticsPanel()}`;
 }
 
-function plannedRow(p){return `<div class="item"><div><div class="name">${escape(p.title)}</div><div class="sub">${p.originalDate&&p.originalDate<today?'⚠ Просрочено с '+fmtDate(p.originalDate):fmtDate(p.date)} · ${escape(p.category||'План')}</div></div><div class="item-end"><div class="amount ${p.kind==='income'?'green':'red'}">${p.kind==='income'?'+':'−'}${shortMoney(p.remaining??p.amount)}</div>${p.kind==='expense'&&['oneOff','expense'].includes(p.type)?`<button class="btn small" data-modal="planpay:${escape(p.id)}">Оплатить</button>`:`<button class="btn small" data-complete="${escape(p.id)}">Учесть</button>`}${p.type==='oneOff'?`<button class="btn small ghost" data-remove-plan="${escape(p.id)}">✕</button>`:''}</div></div>`;}
+function plannedRow(p){return `<div class="item" data-plan-item="${escape(p.id)}" tabindex="-1"><div><div class="name">${escape(p.title)}</div><div class="sub">${p.originalDate&&p.originalDate<today?'⚠ Просрочено с '+fmtDate(p.originalDate):fmtDate(p.date)} · ${escape(p.category||'План')}</div></div><div class="item-end"><div class="amount ${p.kind==='income'?'green':'red'}">${p.kind==='income'?'+':'−'}${shortMoney(p.remaining??p.amount)}</div>${p.kind==='expense'&&['oneOff','expense'].includes(p.type)?`<button class="btn small" data-modal="planpay:${escape(p.id)}">Оплатить</button>`:`<button class="btn small" data-complete="${escape(p.id)}">Учесть</button>`}${p.type==='oneOff'?`<button class="btn small ghost" data-remove-plan="${escape(p.id)}">✕</button>`:''}</div></div>`;}
 function cyclePanel(){const p=salaryPeriod(state,today);const difference=p.deficit;return `<section class="cycle-panel"><div class="cycle-eyebrow">Текущий зарплатный период</div><h2>${fmtDate(p.start)} — ${fmtDate(p.end)}</h2><div class="cycle-metrics"><div><span>Комфортно в день</span><strong>${shortMoney(p.target)}</strong></div><div><span>Доступно в день</span><strong>${shortMoney(p.daily)}</strong></div><div><span>До следующей зарплаты</span><strong>${p.days} дн.</strong></div></div><div class="cycle-details"><div><span>На карте</span><b>${shortMoney(p.available)}</b></div><div><span>Предстоящие обязательства</span><b>− ${shortMoney(p.obligations)}</b></div><div><span>План в копилку</span><b>− ${shortMoney(p.plannedSavings)}</b></div><div><span>На жизнь до зарплаты</span><b>${shortMoney(p.remaining)}</b></div></div>${difference>0?`<div class="cycle-warning"><strong>Дефицит комфортного бюджета: ${shortMoney(difference)}</strong><p>Можно уменьшить сумму в копилку, скорректировать расходы или пересмотреть обязательства. Изменения не применяются автоматически.</p><button class="btn small" data-nav="settings">Изменить план</button></div>`:`<div class="cycle-positive">Сверх комфортного бюджета: ${shortMoney(p.surplus)}. Можно рассмотреть перевод остатка в копилку в конце периода.</div>`}</section>`;}
 function recurringRules(){
  const rules=state.rules.filter(rule=>rule.enabled!==false&&['expense','income','savings'].includes(rule.type)&&(!rule.end||rule.end>=today));
@@ -246,14 +249,27 @@ function recurringRules(){
 }
 function plan(){const safe=deadlineBudget();const funding=new Map(goalFundingStatus(state,today).map(g=>[g.id,g]));const pendingCustom=pendingEvents(state,addDays(today,-365),addDays(today,400)).filter(x=>x.type==='goal'||x.type==='installment');
 const custom=[...(state.goals||[]).map(g=>{const paid=funding.get(g.id)?.paid||0,remaining=Math.max(0,g.amount-paid),reserved=funding.get(g.id)?.funded||0,closed=(state.closedPlans||[]).includes(g.id);return {id:g.id,title:g.title,type:'goal',date:g.date,originalDate:g.date,remaining,paid,reserved,closed,fullyFunded:remaining>0&&reserved>=remaining};}),...pendingCustom.filter(p=>p.type==='installment')];const periods=salaryPeriods(state,today,6);
- const customRow=p=>`<div class="item"><div><div class="name">${escape(p.title)}</div><div class="sub">До ${fmtDate(p.originalDate||p.date)} · ${p.type==='goal'?(p.closed?'Цель закрыта':p.remaining===0?'Цель оплачена':p.fullyFunded?'Цель накоплена · ожидает оплаты':'Цель · уже отложено '+shortMoney(p.reserved||0)):'Рассрочка'} · ${p.type==='goal'?'не оплачено':'осталось'} ${shortMoney(p.remaining)}</div></div><div class="item-end">${!p.closed&&p.remaining>0?`<button class="btn small" data-plan-pay="${escape(p.id)}">Оплатить</button>`:''}<button class="btn small ghost" data-plan-edit="${escape(p.id)}">✎</button><button class="btn small ghost" ${p.closed?`data-plan-reopen="${escape(p.id)}"`:`data-plan-close="${escape(p.id)}"`}>${p.closed?'Возобновить':'Закрыть'}</button></div></div>`;
+ const customRow=p=>`<div class="item" data-plan-item="${escape(p.id)}" tabindex="-1"><div><div class="name">${escape(p.title)}</div><div class="sub">${p.type==='goal'?(p.closed?'Цель закрыта':p.remaining===0?'Цель оплачена':'Отложено '+shortMoney(p.reserved)+' из '+shortMoney(p.remaining)):'К оплате '+shortMoney(p.remaining)} · ${fmtDate(p.originalDate||p.date)}${p.type==='goal'&&p.remaining>0&&!p.closed?`<span class="category-track goal-track" aria-hidden="true"><span style="width:${Math.min(100,p.reserved/p.remaining*100)}%"></span></span>`:''}</div></div><div class="item-end">${!p.closed&&p.remaining>0?`<button class="btn small" data-plan-pay="${escape(p.id)}">Оплатить</button>`:''}<button class="btn small ghost" data-plan-edit="${escape(p.id)}">✎</button><button class="btn small ghost" ${p.closed?`data-plan-reopen="${escape(p.id)}"`:`data-plan-close="${escape(p.id)}"`}>${p.closed?'Возобновить':'Закрыть'}</button></div></div>`;
  const payments=pendingEvents(state,today,addDays(today,45)).filter(x=>x.kind==='expense'&&x.type!=='goal'&&x.type!=='installment');
- return `<section class="card plan-summary"><h2 class="card-title">Безопасный дневной бюджет</h2><div class="kpi-row"><span>Комфортно в день</span><strong>${shortMoney(state.settings?.planning?.dailyTarget||0)}</strong></div><div class="big plan-limit">${shortMoney(safe.daily)} <small>в день</small></div><div class="kpi-row"><span>Прогноз остатка за 45 дней</span><strong>${shortMoney(safe.free)}</strong></div>${safe.firstShortfall?`<div class="deficit">Первый возможный дефицит ${fmtDate(safe.firstShortfall.date)}: ${shortMoney(safe.firstShortfall.amount)}. Проверь платежи и при необходимости переведи средства с другого счёта.</div>`:''}</section><section class="card section"><div class="heading-row"><h2 class="card-title">Обязательные платежи</h2><button class="btn primary small" data-modal="oneoff">+ Платёж</button></div>${payments.slice(0,4).map(plannedRow).join('')||'<div class="empty">Платежей пока нет</div>'}${payments.length>4?disclosure('plan-more-payments','Остальные платежи',payments.slice(4).map(plannedRow).join(''),{summary:String(payments.length-4)}):''}</section><section class="card section"><div class="heading-row"><h2 class="card-title">Цели и рассрочка</h2><button class="btn small" data-modal="goal">+ Цель</button><button class="btn small" data-modal="installment">+ Платёж рассрочки</button></div>${custom.slice(0,3).map(customRow).join('')||'<div class="empty">Пока нет целей и рассрочек</div>'}${custom.length>3?disclosure('plan-more-goals','Ещё цели и рассрочки',custom.slice(3).map(customRow).join(''),{summary:String(custom.length-3)}):''}</section>${disclosure('plan-periods','От зарплаты до зарплаты',`<div class="planning-intro"><div><p class="muted">Плановые поступления подтверждаются отдельно.</p></div><button class="btn" data-nav="settings" data-settings-panel="settings-planning">Настроить бюджет</button></div>${periods.length?periods.map((p,i)=>`<section class="period-panel ${p.current?'current-period':''}"><div class="period-top"><div><span class="period-kicker">${p.current?'Текущий период':'Прогноз · период '+(i+1)}</span><h2>${fmtDate(p.from)} — ${fmtDate(addDays(p.to,-1))}</h2></div><span class="period-days">${p.days} дн.</span></div><div class="period-limits"><div><span>Реально доступно в день</span><strong>${shortMoney(p.availableDaily)}</strong></div><div><span>Комфортная цель</span><strong>${shortMoney(p.comfort)}</strong></div></div>${p.deficit? `<div class="deficit"><strong>Не хватает ${shortMoney(p.deficit)}</strong><p>Можно уменьшить перевод в копилку, пересмотреть расходы или скорректировать цель. Ничего не меняется без твоего решения.</p></div>`:`<div class="surplus">Комфортная цель достижима по текущему плану.</div>`}<details class="period-details"><summary>Расчёт периода</summary><div class="period-breakdown"><div><span>Остаток на начало расчёта</span><strong>${shortMoney(p.opening)}</strong></div><div><span>Плановые поступления</span><strong>+${shortMoney(p.income)}</strong></div><div><span>Обязательные платежи</span><strong>−${shortMoney(p.obligations)}</strong></div><div><span>План в копилку</span><strong>−${shortMoney(p.fixedSavings)}</strong></div><div class="period-total"><span>На повседневные расходы</span><strong>${shortMoney(p.projected)}</strong></div></div></details>${!p.salaryConfirmed&&p.from<=today&&p.to>today?`<button class="btn primary" data-salary-confirm="${escape(p.periodId)}">Подтвердить зарплату · ${shortMoney(p.expectedSalary)}</button>`:''}</section>`).join(''):'<div class="note">Добавь зарплаты в настройках, чтобы построить план.</div>'}`)}${disclosure('plan-rules','Регулярные правила',`<button class="btn small" data-modal="rule">+ Правило</button>${recurringRules()||'<div class="empty">Правил пока нет</div>'}`)}${disclosure('plan-calendar','Календарь на 45 дней',calendarPanel())}`;}
+
+ const groups=[
+  ['overdue','Просрочено',payments.filter(p=>(p.originalDate||p.date)<today)],
+  ['today','Сегодня',payments.filter(p=>(p.originalDate||p.date)===today)],
+  ['upcoming','Дальше',payments.filter(p=>(p.originalDate||p.date)>today)],
+ ];
+ const paymentList=groups.filter(([, , items])=>items.length).map(([id,title,items])=>`<section class="payment-group">
+  <h3>${title}</h3>${items.slice(0,3).map(plannedRow).join('')}
+  ${items.length>3?disclosure('plan-payments-'+id,'Ещё платежи',items.slice(3).map(plannedRow).join(''),{summary:String(items.length-3)}):''}
+ </section>`).join('');
+ return `<section class="card plan-summary"><h2 class="card-title">Безопасный дневной бюджет</h2><div class="big plan-limit">${shortMoney(safe.daily)} <small>в день</small></div>${disclosure('plan-limit-details','Как рассчитан лимит',`<div class="kpi-row"><span>Дневная цель</span><strong>${shortMoney(state.settings?.planning?.dailyTarget||0)}</strong></div><div class="kpi-row"><span>Остаток через 45 дней</span><strong>${shortMoney(safe.free)}</strong></div>`)}${safe.firstShortfall?`<div class="deficit">Первый возможный дефицит ${fmtDate(safe.firstShortfall.date)}: ${shortMoney(safe.firstShortfall.amount)}. Проверь платежи и при необходимости переведи средства с другого счёта.</div>`:''}</section><section class="card section"><div class="heading-row"><h2 class="card-title">Обязательные платежи</h2><button class="btn primary small" data-modal="oneoff">+ Платёж</button></div>${paymentList||'<p class="empty">Платежей пока нет</p>'}</section><section class="card section"><div class="heading-row"><h2 class="card-title">Цели и рассрочка</h2><button class="btn small" data-modal="goal">+ Цель</button><button class="btn small" data-modal="installment">+ Платёж рассрочки</button></div>${custom.slice(0,3).map(customRow).join('')||'<div class="empty">Пока нет целей и рассрочек</div>'}${custom.length>3?disclosure('plan-more-goals','Ещё цели и рассрочки',custom.slice(3).map(customRow).join(''),{summary:String(custom.length-3)}):''}</section>${disclosure('plan-periods','От зарплаты до зарплаты',`<div class="planning-intro"><div><p class="muted">Плановые поступления подтверждаются отдельно.</p></div><button class="btn" data-nav="settings" data-settings-panel="settings-planning">Настроить бюджет</button></div>${periods.length?periods.map((p,i)=>`<section class="period-panel ${p.current?'current-period':''}"><div class="period-top"><div><span class="period-kicker">${p.current?'Текущий период':'Прогноз · период '+(i+1)}</span><h2>${fmtDate(p.from)} — ${fmtDate(addDays(p.to,-1))}</h2></div><span class="period-days">${p.days} дн.</span></div><div class="period-limits"><div><span>Реально доступно в день</span><strong>${shortMoney(p.availableDaily)}</strong></div><div><span>Комфортная цель</span><strong>${shortMoney(p.comfort)}</strong></div></div>${p.deficit? `<div class="deficit"><strong>Не хватает ${shortMoney(p.deficit)}</strong></div>`:''}<details class="period-details"><summary>Расчёт периода</summary><div class="period-breakdown"><div><span>Остаток на начало расчёта</span><strong>${shortMoney(p.opening)}</strong></div><div><span>Плановые поступления</span><strong>+${shortMoney(p.income)}</strong></div><div><span>Обязательные платежи</span><strong>−${shortMoney(p.obligations)}</strong></div><div><span>План в копилку</span><strong>−${shortMoney(p.fixedSavings)}</strong></div><div class="period-total"><span>На повседневные расходы</span><strong>${shortMoney(p.projected)}</strong></div></div></details>${!p.salaryConfirmed&&p.from<=today&&p.to>today?`<button class="btn primary" data-salary-confirm="${escape(p.periodId)}">Подтвердить зарплату · ${shortMoney(p.expectedSalary)}</button>`:''}</section>`).join(''):'<div class="note">Добавь зарплаты в настройках, чтобы построить план.</div>'}`)}${disclosure('plan-rules','Регулярные правила',`<button class="btn small" data-modal="rule">+ Правило</button>${recurringRules()||'<div class="empty">Правил пока нет</div>'}`)}${disclosure('plan-calendar','Календарь на 45 дней',calendarPanel())}`;}
 function predictions(){
  const scenarios=[['comfortable','Комфортный'],['actual','По истории'],['economical','Экономный']];
+ const label=scenarios.find(([id])=>id===scenario)?.[1]||scenarios[0][1];
  const controls=`<div class="forecast-controls">
-  <div class="tabs" role="group" aria-label="Сценарий">${scenarios.map(([id,label])=>`<button data-scenario="${id}" class="${scenario===id?'active':''}" aria-pressed="${scenario===id}">${label}</button>`).join('')}</div>
-  <div class="tabs" role="group" aria-label="Горизонт прогноза">${[3,6,12].map(n=>`<button data-horizon="${n}" class="${forecastMonths===n?'active':''}" aria-pressed="${forecastMonths===n}">${n} мес.</button>`).join('')}</div></div>`;
+  <div class="tabs" role="group" aria-label="Горизонт прогноза">${[3,6,12].map(n=>`<button data-horizon="${n}" class="${forecastMonths===n?'active':''}" aria-pressed="${forecastMonths===n}">${n} мес.</button>`).join('')}</div>
+  <details class="scenario-picker"><summary aria-label="Сценарий: ${label}">${label} <span aria-hidden="true">⌄</span></summary>
+   <div>${scenarios.map(([id,name])=>`<button data-scenario="${id}" aria-pressed="${scenario===id}">${name}</button>`).join('')}</div>
+  </details></div>`;
  let rows;
  try{rows=financeForecast(state,today,forecastMonths,scenario);}catch(error){
   return controls+`<section class="card"><p class="muted">${escape(error.message)}</p></section>`;
@@ -261,10 +277,10 @@ function predictions(){
  const last=rows.at(-1);
  const min=Math.min(0,...rows.map(row=>row.total)),max=Math.max(0,...rows.map(row=>row.total));
  const span=max-min||1,axis=max/span*100;
- const columns=rows.map(row=>`<div class="projection-month" role="listitem" aria-label="${escape(fmtMonth(row.month))}, ${shortMoney(row.total)}" title="${escape(fmtMonth(row.month))} · ${shortMoney(row.total)}">
+ const columns=rows.map(row=>`<button type="button" class="projection-month" data-month-label="${escape(fmtMonth(row.month))}" data-month-amount="${escape(shortMoney(row.total))}" aria-pressed="${row===last}" aria-label="${escape(fmtMonth(row.month))}, ${shortMoney(row.total)}">
   <div class="projection-track"><span class="projection-bar ${row.total<0?'negative':''}" style="top:${(max-Math.max(0,row.total))/span*100}%;height:${Math.abs(row.total)/span*100}%"></span></div>
   <span aria-hidden="true">${escape(fmtMonth(row.month).split(' ')[0].replace('.',''))}</span>
- </div>`).join('');
+ </button>`).join('');
  const table=`<div class="forecast-table-wrap"><table class="forecast-table"><thead><tr><th>Месяц</th><th>Доступно</th><th>Копилка</th><th>Всего</th></tr></thead>
   <tbody>${rows.map(row=>`<tr><td>${escape(fmtMonth(row.month))}</td><td>${shortMoney(row.available)}</td><td>${shortMoney(row.savings)}</td><td><strong>${shortMoney(row.total)}</strong></td></tr>`).join('')}</tbody></table></div>`;
  const model=`<p class="muted">В прогнозе учтены плановые доходы, обязательства и повседневные расходы. Проценты по копилке оценочные.</p>
@@ -272,9 +288,9 @@ function predictions(){
   <div class="action-row"><button class="btn small" data-nav="settings" data-settings-panel="settings-assumptions">Изменить ставку</button>
   <button class="btn small" data-modal="interest">+ Фактические проценты</button></div>`;
  return controls+`<section class="card forecast-overview"><h2 class="card-title">Прогноз по месяцам</h2>
-  <div class="big">${shortMoney(last.total)}</div>
-  <p class="muted">К концу периода · ${escape(fmtMonth(last.month))}</p>
-  <div class="projection-chart" role="list" aria-label="Остаток по месяцам" style="--axis:${axis}%">${columns}</div>
+  <div class="big" data-forecast-value>${shortMoney(last.total)}</div>
+  <p class="muted" data-forecast-label>К концу периода · ${escape(fmtMonth(last.month))}</p>
+  <div class="projection-chart" role="group" aria-label="Остаток по месяцам" style="--axis:${axis}%">${columns}</div>
  </section>${disclosure('forecast-table','Помесячные суммы',table)}${disclosure('forecast-model','Как рассчитан прогноз',model)}`;
 }
 
@@ -282,16 +298,19 @@ function bankImport(){return `<div class="bank-import"><p class="muted">Подд
 function settings(){const p=state.settings?.planning||{};const salary7=state.rules.find(r=>r.type==='salary'&&r.day===7);const salary23=state.rules.find(r=>r.type==='salary'&&r.day===23);
  const draft='<p class="muted">Черновик включает начальные остатки, зарплату, цели и рассрочку. Для применения потребуется подтверждение.</p><button class="btn" data-personal-seed>Применить мой черновик</button>';
  const subscriptions=`${(state.undatedObligations||[]).map(x=>`<div class="item"><div><div class="name">${escape(x.title)}</div><div class="sub">${shortMoney(x.amount)} в месяц · дата неизвестна</div></div><button class="btn small" data-subscription="${escape(x.id)}">Указать дату</button></div>`).join('')||'<div class="empty">Нет расходов без даты</div>'}`;
- return `<div class="settings-stack">
+ return `<div class="settings-stack"><section class="settings-group"><h2>Планирование</h2>
   ${disclosure('settings-planning','Зарплата и дневной бюджет',`<form class="form" data-form="planning"><div class="form-cols">${field('salary7','Зарплата 7-го, ₽','number',(salary7?.amount||0)/100,'min="0" step="0.01"')}${field('salary23','Зарплата 23-го, ₽','number',(salary23?.amount||0)/100,'min="0" step="0.01"')}</div><p class="muted">Если дата приходится на субботу или воскресенье, выплата переносится на предыдущую пятницу.</p><div class="form-cols">${field('dailyTarget','Комфортно в день, ₽','number',(p.dailyTarget||0)/100,'min="0" step="0.01"')}${field('savingsFixed','В копилку с зарплаты, ₽','number',(p.savingsFixed||0)/100,'min="0" step="0.01"')}</div><label class="check-row"><input type="checkbox" name="includeSavingsInDaily" value="yes" ${p.includeSavingsInDaily?'checked':''}> Учитывать копилку в дневном бюджете</label><button class="btn primary" type="submit">Сохранить финансовый план</button></form>`)}
   ${disclosure('settings-assumptions','Ставка копилки и сценарий',`<form class="form" data-form="settings"><div class="field"><label>Ставка копилки, % годовых (0–100)</label><input name="apr" type="number" min="0" max="100" step="0.01" required value="${escape(state.settings.savingsApr)}"></div><div class="field"><label>Экономный сценарий: снижение дневных расходов, %</label><input name="economyPercent" type="number" min="0" max="100" step="1" required value="${escape(state.settings?.planning?.economyPercent??20)}"></div><button class="btn primary" type="submit">Сохранить параметры</button></form>`)}
+  ${state.undatedObligations?.length?disclosure('settings-subscriptions','Подписки без даты списания',subscriptions,{summary:String(state.undatedObligations.length)}):''}
+ </section><section class="settings-group"><h2>Выписки и копии</h2>
   ${disclosure('settings-import','Импорт выписки',bankImport(),{summary:bankPreview.length?'Предпросмотр готов':''})}
   ${disclosure('settings-backup','Резервная копия',`<p class="muted">Скачайте копию перед переносом или очисткой данных браузера.</p><div class="action-row"><button class="btn primary" data-export>↓ Скачать JSON</button><button class="btn" data-import>↑ Восстановить JSON</button><input id="import-file" type="file" accept=".json,application/json" style="display:none"></div>`,{summary:'JSON'})}
-  ${state.undatedObligations?.length?disclosure('settings-subscriptions','Подписки без даты списания',subscriptions,{summary:String(state.undatedObligations.length)}):''}
+
+ </section><section class="settings-group"><h2>Начальные данные</h2>
   ${disclosure('settings-opening','Начальные остатки',`<p class="muted">Изменение стартовых сумм пересчитывает историю.</p><div class="kpi-row"><span>На счетах при старте</span><strong>${shortMoney(state.opening.available)}</strong></div><div class="kpi-row"><span>В копилке при старте</span><strong>${shortMoney(state.opening.savings)}</strong></div><button class="btn" data-modal="opening">Изменить начальные остатки</button>`)}
   ${disclosure('settings-draft','Подготовленный черновик',draft)}
   ${disclosure('settings-reset','Сброс бюджета',`<p class="muted">Сброс заменит текущий бюджет.</p><div class="action-row"><button class="btn" data-reset="empty">Новый пустой бюджет</button><button class="btn danger" data-reset="demo">Вернуть демо</button></div>`)}
- </div>`;
+ </section></div>`;
 }
 function render(){
  for(const panel of root.querySelectorAll('details[data-panel]'))openPanels.set(panel.dataset.panel,panel.open);
@@ -349,7 +368,20 @@ root.addEventListener('keydown',event=>{
  const menu=event.target.closest('.operation-menu[open]');
  if(event.key==='Escape'&&menu){menu.open=false;menu.querySelector('summary').focus();}
 });
-root.addEventListener('click',async ev=>{const el=ev.target.closest('button,[data-overlay]');if(!el)return;const d=el.dataset;if(d.historyDays){historyDays=Number(d.historyDays);render();root.querySelector('[data-history-days="'+historyDays+'"]')?.focus({preventScroll:true});return;}if(d.nav){active=d.nav;tab='all';visibleOperations=operationsPageSize;modal='';render();window.scrollTo(0,0);const panel=d.settingsPanel&&root.querySelector('details[data-panel="'+d.settingsPanel+'"]');if(panel){panel.open=true;panel.scrollIntoView({block:'start'});}}if(d.tab){tab=d.tab;visibleOperations=operationsPageSize;render();}if(d.showOperations!==undefined){visibleOperations+=operationsPageSize;render();}if(d.scenario){scenario=d.scenario;render();}if(d.horizon){forecastMonths=Number(d.horizon);render();}if(d.modal){modal=d.modal;render();}if(d.salaryConfirm){modal='salary:'+d.salaryConfirm;render();}if(d.close!==undefined||d.overlay!==undefined&&ev.target===el){modal='';render();}if(d.edit){modal='edit:'+d.edit;render();}if(d.delete){const tx=state.transactions.find(t=>t.id===d.delete);if(tx&&confirm(`Удалить операцию «${tx.note||tx.category}» на ${shortMoney(tx.amount)}?`))try{await commit(deleteTransaction(state,tx.id),'Операция удалена, балансы пересчитаны');}catch(error){toast(error.message,true);}}if(d.complete)await markComplete(d.complete);if(d.subscription){modal='subscription:'+d.subscription;render();}if(d.planPay){modal='planpay:'+d.planPay;render();}if(d.planEdit){modal='planedit:'+d.planEdit;render();}if(d.ruleEdit){modal='ruleedit:'+d.ruleEdit;render();}if(d.planClose){if(!(state.closedPlans||[]).includes(d.planClose)&&confirm('Закрыть невыполненный остаток? Резерв освободится, а цель останется в истории.'))await commit({...state,closedPlans:[...(state.closedPlans||[]),d.planClose]},'Цель закрыта, резерв освобождён');}if(d.planReopen){await commit({...state,closedPlans:(state.closedPlans||[]).filter(id=>id!==d.planReopen)},'Цель возобновлена');}if(d.personalSeed!==undefined){
+root.addEventListener('click',async ev=>{const el=ev.target.closest('button,[data-overlay]');if(!el)return;const d=el.dataset;if(d.historyDays){historyDays=Number(d.historyDays);render();root.querySelector('[data-history-days="'+historyDays+'"]')?.focus({preventScroll:true});return;}if(d.nav){active=d.nav;tab='all';visibleOperations=operationsPageSize;modal='';render();window.scrollTo(0,0);const panel=d.settingsPanel&&root.querySelector('details[data-panel="'+d.settingsPanel+'"]');if(panel){
+ for(let parent=panel;parent;parent=parent.parentElement?.closest('details'))parent.open=true;
+ panel.scrollIntoView({block:'start'});
+ }
+ if(d.planTarget){
+ const row=root.querySelector('[data-plan-item="'+CSS.escape(d.planTarget)+'"]');
+ if(row){for(let parent=row.closest('details');parent;parent=parent.parentElement?.closest('details'))parent.open=true;row.focus();row.scrollIntoView({block:'center'});}
+ }}if(d.tab){tab=d.tab;visibleOperations=operationsPageSize;render();}if(d.showOperations!==undefined){visibleOperations+=operationsPageSize;render();}if(d.monthLabel){
+ const chart=el.closest('.forecast-overview');
+ for(const month of chart.querySelectorAll('[data-month-label]'))month.setAttribute('aria-pressed',String(month===el));
+ chart.querySelector('[data-forecast-value]').textContent=d.monthAmount;
+ chart.querySelector('[data-forecast-label]').textContent='На конец месяца · '+d.monthLabel;
+ return;
+ }if(d.scenario){scenario=d.scenario;render();}if(d.horizon){forecastMonths=Number(d.horizon);render();}if(d.modal){modal=d.modal;render();}if(d.salaryConfirm){modal='salary:'+d.salaryConfirm;render();}if(d.close!==undefined||d.overlay!==undefined&&ev.target===el){modal='';render();}if(d.edit){modal='edit:'+d.edit;render();}if(d.delete){const tx=state.transactions.find(t=>t.id===d.delete);if(tx&&confirm(`Удалить операцию «${tx.note||tx.category}» на ${shortMoney(tx.amount)}?`))try{await commit(deleteTransaction(state,tx.id),'Операция удалена, балансы пересчитаны');}catch(error){toast(error.message,true);}}if(d.complete)await markComplete(d.complete);if(d.subscription){modal='subscription:'+d.subscription;render();}if(d.planPay){modal='planpay:'+d.planPay;render();}if(d.planEdit){modal='planedit:'+d.planEdit;render();}if(d.ruleEdit){modal='ruleedit:'+d.ruleEdit;render();}if(d.planClose){if(!(state.closedPlans||[]).includes(d.planClose)&&confirm('Закрыть невыполненный остаток? Резерв освободится, а цель останется в истории.'))await commit({...state,closedPlans:[...(state.closedPlans||[]),d.planClose]},'Цель закрыта, резерв освобождён');}if(d.planReopen){await commit({...state,closedPlans:(state.closedPlans||[]).filter(id=>id!==d.planReopen)},'Цель возобновлена');}if(d.personalSeed!==undefined){
  const isDemo=state.settings?.demo===true;
  const hasData=state.transactions.length||state.rules.length||state.oneOffs.length||(state.goals||[]).length||(state.installments||[]).length;
  if(hasData&&!isDemo){alert('В бюджете уже есть реальные данные. Черновик нельзя применить поверх них. Скачай JSON, затем создай пустой бюджет или восстанови резервную копию.');return;}

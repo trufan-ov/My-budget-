@@ -27,6 +27,11 @@ try{
   await page.locator('.mobile-nav').waitFor();
   await context.setOffline(false);
  }
+ const nextPayment=page.locator('[data-plan-target]').first();
+ const paymentId=await nextPayment.getAttribute('data-plan-target');
+ await nextPayment.click();
+ const target=page.locator('[data-plan-item="'+paymentId+'"]');
+ assert.equal(await target.evaluate(el=>document.activeElement===el),true);
  await page.locator('.mobile-nav [data-nav="more"]').click();
  assert.equal(await page.locator('.more-link').count(),4);
  await page.locator('.more-link[data-nav="settings"]').click();
@@ -45,13 +50,15 @@ try{
  assert.equal(await breakdown.locator('tbody tr:visible').count(),12);
  await page.getByText('Прогноз по месяцам',{exact:true}).first().waitFor();
  assert.equal(await page.getByText(/NaN|не число/i).count(),0);
- await page.locator('[data-scenario="actual"]').click();
- assert.equal(await page.getByText(/NaN|не число/i).count(),0);
- if(await page.locator('[data-scenario="comfortable"]').count()===1)await page.locator('[data-scenario="comfortable"]').click();
- for(const choice of ['economical','comfortable']){
+ for(const choice of ['actual','economical','comfortable']){
+  await page.locator('.scenario-picker summary').click();
   await page.locator('[data-scenario="'+choice+'"]').click();
   assert.equal(await page.getByText(/NaN|не число/i).count(),0);
  }
+ const firstMonth=page.locator('[data-month-label]').first();
+ const expected=await firstMonth.getAttribute('data-month-amount');
+ await firstMonth.click();
+ assert.equal(await page.locator('[data-forecast-value]').textContent(),expected);
  await page.locator('.mobile-nav [data-nav="more"]').click();
  await page.locator('.more-link[data-nav="settings"]').click();
  await page.locator('[data-panel="settings-subscriptions"] > summary').click();
