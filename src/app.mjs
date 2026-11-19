@@ -16,17 +16,29 @@ function nextSalaryForUI(){const a=futureOccurrences(state,addDays(today,1),addD
 const titleMap={home:'Главная',history:'Операции',accounts:'Счета',debts:'Долги',plan:'План',forecast:'Накопления',settings:'Настройки',more:'Ещё'};
 function toast(msg,error=false){document.querySelector('.toast')?.remove();const el=document.createElement('div');el.className=`toast${error?' error':''}`;el.textContent=msg;document.body.append(el);clearTimeout(toastTimer);toastTimer=setTimeout(()=>el.remove(),3800);}
 async function commit(next,message,onSaved){try{if(state?.settings?.demo===true&&next.settings?.demo===true)next={...next,settings:{...next.settings,demo:false}};validateState(next);await save(next,state);state=next;onSaved?.();render();if(message)toast(message);}catch(err){toast(err.message,true);}}
+const navPaths={
+ home:'M3 10.5 12 3l9 7.5 M5.5 9v11h5v-6h3v6h5V9',
+ history:'M4 7h15l-4-4 M20 17H5l4 4',
+ accounts:'M3.5 8V5.5L17 3v5 M3.5 8H21v12H3.5z M21 12h-6v4h6',
+ debts:'M5 3.5h14v17l-3-1.5-4 1.5L8 19l-3 1.5z M8.5 8h7 M8.5 12h4.5',
+ plan:'M4 6h16v14H4z M8 3v5 M16 3v5 M4 11h16 M8 15h3',
+ forecast:'M3 20h18 M3 15l5-5 4 3 8-9 M15 4h5v5',
+ settings:'M4 7h7m5 0h4 M4 17h2m5 0h9 M11 4.5h5v5h-5z M6 14.5h5v5H6z',
+ more:'M4 4h6v6H4z M14 4h6v6h-6z M4 14h6v6H4z M14 14h6v6h-6z',
+};
+function navIcon(key){
+ return `<svg class="nav-mark" aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="square" stroke-linejoin="round"><path d="${navPaths[key]}"/></svg>`;
+}
 function navButtons(){
  const items=[['home','Главная'],['history','Операции'],['accounts','Счета'],['debts','Долги'],['plan','План'],['forecast','Прогноз'],['settings','Настройки']];
- const mobile=[['home','Главная','⌂'],['history','Операции','☷'],['plan','План','▦'],['more','Ещё','☰']];
- const glyph={home:'⌂',history:'☷',accounts:'▤',debts:'₽',plan:'▦',forecast:'⌁',settings:'⚙'};
+ const mobile=[['home','Главная'],['history','Операции'],['plan','План'],['more','Ещё']];
  const moreActive=['more','accounts','debts','forecast','settings'].includes(active);
- return `<aside class="sidebar"><div class="brand"><span class="brand-symbol">₽</span> Мой бюджет</div><div class="nav">${items.map(([k,t])=>`<button data-nav="${k}" class="${active===k?'active':''}"><span class="nav-icon">${glyph[k]}</span>${t}</button>`).join('')}</div><div class="side-foot">Личные финансы<br>Данные только на устройстве</div></aside>
- <nav class="mobile-nav" aria-label="Основная навигация">${mobile.map(([k,t,g])=>`<button data-nav="${k}" aria-label="${t}" aria-current="${(k==='more'?moreActive:active===k)?'page':'false'}" class="${(k==='more'?moreActive:active===k)?'active':''}"><span class="ico" aria-hidden="true">${g}</span><span>${t}</span></button>`).join('')}</nav>`;
+ return `<aside class="sidebar"><div class="brand"><span class="brand-symbol"><svg aria-hidden="true" viewBox="0 0 32 32" fill="currentColor"><path d="M2 25 8 7h5l2.6 8.5L22 7h5.5l-6.1 18h-5.1l3.3-9.7-6 7.6-2.5-8.1L7.5 25z"/></svg></span> Мой бюджет</div><nav class="nav" aria-label="Разделы бюджета">${items.map(([k,t])=>`<button data-nav="${k}" aria-current="${active===k?'page':'false'}" class="${active===k?'active':''}"><span class="nav-icon">${navIcon(k)}</span>${t}</button>`).join('')}</nav><div class="side-foot">Личные финансы<br>Данные только на устройстве</div></aside>
+ <nav class="mobile-nav" aria-label="Основная навигация">${mobile.map(([k,t])=>`<button data-nav="${k}" aria-label="${t}" aria-current="${(k==='more'?moreActive:active===k)?'page':'false'}" class="${(k==='more'?moreActive:active===k)?'active':''}"><span class="ico">${navIcon(k)}</span><span>${t}</span></button>`).join('')}</nav>`;
 }
 function morePage(){
- const items=[['accounts','▤','Счета','Карты, наличные, переводы'],['debts','₽','Долги и кредиты','Погашения и чистый капитал'],['forecast','⌁','Прогноз','Сценарии и накопления'],['settings','⚙','Настройки','Импорт, подписки, резервные копии']];
- return `<section class="card section"><h2 class="card-title">Финансы и настройки</h2><div class="more-links">${items.map(([k,g,t,sub])=>`<button class="more-link" data-nav="${k}"><span class="more-icon" aria-hidden="true">${g}</span><span class="more-label"><strong>${t}</strong><small>${sub}</small></span><span class="more-chevron" aria-hidden="true">›</span></button>`).join('')}</div></section>`;
+ const items=[['accounts','Счета','Карты, наличные, переводы'],['debts','Долги и кредиты','Погашения и чистый капитал'],['forecast','Прогноз','Сценарии и накопления'],['settings','Настройки','Импорт, подписки, резервные копии']];
+ return `<section class="card section"><h2 class="card-title">Финансы и настройки</h2><div class="more-links">${items.map(([k,t,sub])=>`<button class="more-link" data-nav="${k}"><span class="more-icon">${navIcon(k)}</span><span class="more-label"><strong>${t}</strong><small>${sub}</small></span><span class="more-chevron" aria-hidden="true">›</span></button>`).join('')}</div></section>`;
 }
 
 function top(){return `<header class="topline"><div><div class="eyebrow">${new Intl.DateTimeFormat('ru-RU',{month:'long',year:'numeric'}).format(parseDate(today))}</div><h1 class="title">${titleMap[active]}</h1></div><div class="top-date"><span class="local-dot">●</span> На устройстве</div></header>`;}
@@ -37,14 +49,43 @@ function balanceChart(){
  const periods=[7,30,90].map(days=>`<button type="button" data-history-days="${days}" aria-pressed="${days===historyDays}">${days} дн.</button>`).join('');
  const header=`<div class="plot-heading"><h2>Динамика остатка</h2><div class="plot-periods" role="group" aria-label="Период графика">${periods}</div></div>`;
  if(!points.length)return header+'<p class="empty">График появится после первой операции.</p>';
- const amounts=points.map(p=>p.available),low=Math.min(...amounts),high=Math.max(...amounts);
- const coords=points.map((p,i)=>[points.length===1?99:i*98/(points.length-1)+1,high===low?48:90-82*(p.available-low)/(high-low)]);
- const line=coords.map(pair=>pair.join(',')).join(' '),last=coords.at(-1);
- const formatDay=day=>new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short'}).format(parseDate(day));
- const dates=formatDay(points[0].day)+' — '+formatDay(points.at(-1).day);
- return header+`<figure class="balance-plot"><div class="plot-scale"><span>${shortMoney(high)}</span>${low!==high?'<span>'+shortMoney(low)+'</span>':''}</div><svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Доступный остаток, ${dates}. Минимум ${shortMoney(low)}, максимум ${shortMoney(high)}"><defs><linearGradient id="balance-fill" x2="0" y2="1"><stop stop-color="#24499c" stop-opacity=".8"/><stop offset="1" stop-color="#16294e" stop-opacity=".12"/></linearGradient></defs><polygon points="${coords[0][0]},100 ${line} ${last[0]},100" fill="url(#balance-fill)"/><polyline points="${line}" fill="none" stroke="#4e70ba" stroke-width="2.5" stroke-linejoin="round" vector-effect="non-scaling-stroke"/><path d="M${last[0]} ${last[1]}h0.01" stroke="white" stroke-linecap="round" stroke-width="5" vector-effect="non-scaling-stroke"/></svg><figcaption><span>${formatDay(points[0].day)}</span><span>${formatDay(points.at(-1).day)}</span></figcaption></figure>`;
+ const amounts=points.map(point=>point.available);
+ const low=Math.min(...amounts),high=Math.max(...amounts);
+ const dateFormat=new Intl.DateTimeFormat('ru-RU',{day:'numeric',month:'short'});
+ const samples=points.map(({day,available},index)=>({
+  x:points.length===1?98:2+index*96/(points.length-1),
+  y:high===low?50:90-80*(available-low)/(high-low),
+  amount:shortMoney(available),date:dateFormat.format(parseDate(day)),
+ }));
+ const line=samples.map(({x,y})=>x+","+y).join(" "),first=samples[0],last=samples.at(-1);
+ const dates=first.date+" — "+last.date;
+ return header+`<figure class="balance-plot">
+ <div class="plot-reading"><strong data-plot-amount>${last.amount}</strong><span data-plot-date>${last.date}</span></div>
+ <div class="plot-scale"><span>${shortMoney(high)}</span>${low!==high?`<span>${shortMoney(low)}</span>`: ''}</div>
+ <div class="plot-stage">
+ <svg viewBox="0 0 100 100" preserveAspectRatio="none" role="img" aria-label="Доступный остаток, ${dates}. Минимум ${shortMoney(low)}, максимум ${shortMoney(high)}">
+ <defs><linearGradient id="balance-fill" x2="0" y2="1"><stop stop-color="#254998" stop-opacity=".82"/><stop offset="1" stop-color="#101b33" stop-opacity=".08"/></linearGradient></defs>
+ <path class="plot-grid" d="M0 10H100 M0 30H100 M0 50H100 M0 70H100 M0 90H100" vector-effect="non-scaling-stroke"/>
+ <polygon points="${first.x},90 ${line} ${last.x},90" fill="url(#balance-fill)"/>
+ <polyline points="${line}" fill="none" stroke="#577dd3" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/>
+ <path data-plot-guide d="M${last.x} 4V96" stroke="#546fa5" vector-effect="non-scaling-stroke"/>
+ <path data-plot-point d="M${last.x} ${last.y}h0.01" stroke="#f8faff" stroke-linecap="round" stroke-width="6" vector-effect="non-scaling-stroke"/></svg>
+ ${samples.length>1?`<input class="plot-scrub" type="range" min="0" max="${samples.length-1}" value="${samples.length-1}" aria-label="Остаток по дате" aria-valuetext="${escape(last.date+" · "+last.amount)}" data-plot-points="${escape(JSON.stringify(samples))}">`: ''}</div>
+ <figcaption><span>${first.date}</span>${first.date!==last.date?`<span>${last.date}</span>`: ''}</figcaption></figure>`;
 }
-function home(){const s=summary(),safe=deadlineBudget(),rows=state.transactions.filter(t=>t.date<=today).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5),next=pendingEvents(state,today,addDays(today,30)).slice(0,4);return `<div class="dashboard-overview"><section class="balance-section"><div class="balance-label">Доступно сейчас</div><div class="balance-value">${shortMoney(s.current.available)}</div><div class="balance-caption">Для расходов · без накоплений</div><div class="primary-actions"><button class="quick-action quick-main" data-modal="expense"><span>−</span> Расход</button><button class="quick-action" data-modal="income"><span>＋</span> Доход</button><button class="quick-action" data-modal="transfer"><span>↗</span> Перевод</button></div></section><section class="history-panel">${balanceChart()}</section></div><section class="insights"><div class="insight"><span class="insight-label">Копилка</span><strong>${shortMoney(s.current.savings)}</strong><button data-modal="transfer" class="insight-link">Управлять ↗</button></div><div class="insight"><span class="insight-label">Дневной лимит</span><strong>${shortMoney(safe.daily)}</strong><span class="insight-detail">Горизонт 45 дней</span></div><div class="insight"><span class="insight-label">Обязательства</span><strong>${shortMoney(s.reserved)}</strong><button data-nav="plan" class="insight-link">Посмотреть ↗</button></div></section>${safe.firstShortfall?`<div class="banner warning">Возможный дефицит ${fmtDate(safe.firstShortfall.date)}: ${shortMoney(safe.firstShortfall.amount)}. Проверьте счёт и сроки платежей.</div>`:''}<div class="home-columns"><section class="content-section"><div class="heading-row"><h2 class="card-title">Последние операции</h2><button class="text-link" data-nav="history">Все</button></div><div class="list-surface">${rows.length?rows.map(itemTx).join(''):'<div class="empty">Операций пока нет</div>'}</div></section><section class="content-section"><div class="heading-row"><h2 class="card-title">Скоро</h2><button class="text-link" data-nav="plan">План</button></div><div class="list-surface">${next.length?next.map(p=>`<div class="item"><div><div class="name">${escape(p.title)}</div><div class="sub">${fmtDate(p.date)}</div></div><div class="amount ${p.kind==='income'?'green':''}">${p.kind==='income'?'+':'−'}${shortMoney(p.amount)}</div></div>`).join(''):'<div class="empty">Событий пока нет</div>'}</div><div class="next-salary">Следующая зарплата <strong>${fmtDate(s.nextSalary)}</strong></div></section></div>`;}
+
+root.addEventListener('input',event=>{
+ const control=event.target.closest('[data-plot-points]');
+ if(!control)return;
+ const {x,y,amount,date}=JSON.parse(control.dataset.plotPoints)[Number(control.value)];
+ const plot=control.closest('.balance-plot');
+ plot.querySelector('[data-plot-amount]').textContent=amount;
+ plot.querySelector('[data-plot-date]').textContent=date;
+ plot.querySelector('[data-plot-guide]').setAttribute('d','M'+x+' 4V96');
+ plot.querySelector('[data-plot-point]').setAttribute('d','M'+x+' '+y+'h0.01');
+ control.setAttribute('aria-valuetext',date+' · '+amount);
+});
+function home(){const s=summary(),safe=deadlineBudget(),rows=state.transactions.filter(t=>t.date<=today).sort((a,b)=>b.date.localeCompare(a.date)).slice(0,5),next=pendingEvents(state,today,addDays(today,30)).slice(0,4);return `<div class="dashboard-overview"><section class="balance-section"><div class="balance-label">Доступно сейчас</div><div class="balance-value">${shortMoney(s.current.available)}</div><div class="balance-caption">Для расходов · без накоплений</div><div class="primary-actions"><button class="quick-action quick-main" data-modal="expense"><span>−</span> Расход</button><button class="quick-action" data-modal="income"><span>＋</span> Доход</button><button class="quick-action" data-modal="transfer"><span>↗</span> Перевод</button></div></section><section class="history-panel">${balanceChart()}</section><section class="insights"><div class="insight"><span class="insight-label">Копилка</span><strong>${shortMoney(s.current.savings)}</strong><button data-modal="transfer" class="insight-link">Управлять ↗</button></div><div class="insight"><span class="insight-label">Дневной лимит</span><strong>${shortMoney(safe.daily)}</strong><span class="insight-detail">Горизонт 45 дней</span></div><div class="insight"><span class="insight-label">Обязательства</span><strong>${shortMoney(s.reserved)}</strong><button data-nav="plan" class="insight-link">Посмотреть ↗</button></div></section></div>${safe.firstShortfall?`<div class="banner warning">Возможный дефицит ${fmtDate(safe.firstShortfall.date)}: ${shortMoney(safe.firstShortfall.amount)}. Проверьте счёт и сроки платежей.</div>`:''}<div class="home-columns"><section class="content-section"><div class="heading-row"><h2 class="card-title">Последние операции</h2><button class="text-link" data-nav="history">Все</button></div><div class="list-surface">${rows.length?rows.map(itemTx).join(''):'<div class="empty">Операций пока нет</div>'}</div></section><section class="content-section"><div class="heading-row"><h2 class="card-title">Скоро</h2><button class="text-link" data-nav="plan">План</button></div><div class="list-surface">${next.length?next.map(p=>`<div class="item"><div><div class="name">${escape(p.title)}</div><div class="sub">${fmtDate(p.date)}</div></div><div class="amount ${p.kind==='income'?'green':''}">${p.kind==='income'?'+':'−'}${shortMoney(p.amount)}</div></div>`).join(''):'<div class="empty">Событий пока нет</div>'}</div><div class="next-salary">Следующая зарплата <strong>${fmtDate(s.nextSalary)}</strong></div></section></div>`;}
 function calendarPanel(){
  const events=pendingEvents(state,today,addDays(today,45));
  const dates=[...new Set(events.map(e=>e.date))].sort();
